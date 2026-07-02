@@ -620,7 +620,7 @@ window.exportCsv = function(){
   a.href = url; a.download = `解答履歴_${todayStr()}.csv`;
   a.click();
   URL.revokeObjectURL(url);
-}
+};
 
 /* ===================== 起動 ===================== */
 (async function init(){
