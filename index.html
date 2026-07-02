@@ -175,7 +175,12 @@
         <label>この科目の出題数(ランダムに何問出題するか)</label>
         <input type="number" id="qSubjectLen" min="1" max="50" value="10" onchange="saveQuizLength()">
         <label>分野タグ(苦手分野分析に使用)</label>
-        <input type="text" id="qTag" placeholder="例: 権利擁護、地域福祉 など">
+        <select id="qTag" onchange="onTagSelectChange()"></select>
+        <div id="qTagNewWrap" style="display:none;margin-top:6px;">
+          <input type="text" id="qTagNew" placeholder="新しいタグ名を入力">
+          <button type="button" class="secondary" style="margin-top:6px;" onclick="confirmNewTag()">このタグを追加する</button>
+        </div>
+        <p class="note">科目ごとのタグ一覧はドラフトです。内容が違う場合はプルダウン下の「＋新しいタグを追加」から直接編集できます。</p>
         <label>問題文</label>
         <textarea id="qText" placeholder="問題文を入力"></textarea>
         <label>選択肢と解説(5つ・それぞれ「なぜ正しい/誤りか」を入力)</label>
@@ -253,11 +258,35 @@ const SUBJECTS = [
 ];
 const DEFAULT_QUIZ_LENGTH = 10;
 
+// 各科目の中項目タグ(ドラフト・教員画面から追加/編集できます)
+const DEFAULT_SUBJECT_TAGS = {
+  "医学概論": ["ライフステージと健康課題","健康及び疾病の捉え方","身体構造と心身機能","疾病と障害の成り立ち","公衆衛生"],
+  "心理学と心理的支援": ["心理学の視点","心の基本的な仕組みと機能","心の発達過程","日常生活と心の健康","心理的支援の理論と方法"],
+  "社会学と社会システム": ["社会と生活の変化","家族・地域社会","社会集団・組織","人口","社会的排除・格差","社会変動・グローバル化"],
+  "社会福祉の原理と政策": ["社会福祉の原理","社会福祉の歴史","福祉政策の基本的な視点","福祉政策の展開","福祉政策の推進主体・実施体制"],
+  "社会福祉調査の基礎": ["社会福祉調査の意義と目的","量的調査の方法","質的調査の方法","調査の倫理と個人情報保護"],
+  "ソーシャルワークの基盤と専門職": ["社会福祉士とソーシャルワーク","ソーシャルワークの概念と範囲","ソーシャルワークの倫理","総合的かつ包括的な支援"],
+  "ソーシャルワークの基盤と専門職(専門)": ["ソーシャルワークの担い手","専門職の役割と多職種連携","ソーシャルワークの歴史"],
+  "ソーシャルワークの理論と方法": ["ソーシャルワークの過程","ソーシャルワークの実践モデル・アプローチ","相談援助の技術"],
+  "ソーシャルワークの理論と方法(専門)": ["集団を活用した支援","地域を対象とした支援","カンファレンス","スーパービジョン","記録"],
+  "地域福祉と包括的支援体制": ["地域福祉の基本的な考え方","地域福祉の推進主体","地域福祉計画","地域共生社会","災害時の支援体制"],
+  "福祉サービスの組織と経営": ["福祉サービスに係る組織や団体","福祉サービスの経営と管理運営","福祉人材のマネジメント"],
+  "社会保障": ["社会保障の概念・範囲・役割","社会保障の財源と費用","公的年金制度","医療保険制度","労働保険制度"],
+  "高齢者福祉": ["高齢者福祉の理念・実施体制","介護保険制度","高齢者虐待防止","高齢者の住まい"],
+  "障害者福祉": ["障害者福祉の理念","障害者総合支援法","障害者虐待防止・差別解消","障害児支援"],
+  "児童・家庭福祉": ["児童・家庭福祉の理念","児童福祉法","子ども・子育て支援","児童虐待防止","ひとり親家庭支援"],
+  "貧困に対する支援": ["貧困の概念","生活保護制度","生活困窮者自立支援制度","低所得者対策"],
+  "保健医療と福祉": ["保健医療の動向","保健医療に係る政策・制度・法律","医療保険制度","保健医療における専門職の役割と連携"],
+  "権利擁護を支える法制度": ["権利擁護の意義と対象","成年後見制度","日常生活自立支援事業","虐待防止","消費者保護"],
+  "刑事司法と福祉": ["刑事司法制度","更生保護制度","医療観察制度","司法と福祉の連携"]
+};
+
 /* ===================== 状態 ===================== */
 let ALL_QUESTIONS = {};   // id -> question
 let ALL_STUDENTS = {};    // studentId -> {last, first}
 let ALL_ANSWERS = {};     // id -> {studentId, subject, tag, correct, date}
 let QUIZ_LENGTHS = {};    // subject -> number
+let SUBJECT_TAGS = {};    // subject -> [tag, tag, ...]
 let currentStudent = null;
 let quizQueue = [];
 let quizIndex = 0;
@@ -284,16 +313,26 @@ window.goHome = goHome;
 
 /* ===================== 初期データ読み込み ===================== */
 async function loadAll(){
-  const [qSnap, sSnap, aSnap, lenSnap] = await Promise.all([
+  const [qSnap, sSnap, aSnap, lenSnap, tagSnap] = await Promise.all([
     get(ref(db, "questions")),
     get(ref(db, "students")),
     get(ref(db, "answers")),
-    get(ref(db, "quizLengths"))
+    get(ref(db, "quizLengths")),
+    get(ref(db, "subjectTags"))
   ]);
   ALL_QUESTIONS = qSnap.exists() ? qSnap.val() : {};
   ALL_STUDENTS = sSnap.exists() ? sSnap.val() : {};
   ALL_ANSWERS = aSnap.exists() ? aSnap.val() : {};
   QUIZ_LENGTHS = lenSnap.exists() ? lenSnap.val() : {};
+  const savedTags = tagSnap.exists() ? tagSnap.val() : {};
+  SUBJECT_TAGS = {};
+  SUBJECTS.forEach(s=>{
+    SUBJECT_TAGS[s] = savedTags[s] || DEFAULT_SUBJECT_TAGS[s] || [];
+  });
+}
+
+function tagsOf(subject){
+  return SUBJECT_TAGS[subject] || [];
 }
 
 function questionsOf(subject){
@@ -459,10 +498,40 @@ function populateSubjectSelects(){
   document.getElementById("qSubject").innerHTML = opts;
   document.getElementById("qFilterSubject").innerHTML = `<option value="">すべての科目</option>` + opts;
   document.getElementById("qSubjectLen").value = quizLenFor(document.getElementById("qSubject").value);
+  populateTagSelect();
+}
+
+function populateTagSelect(){
+  const subject = document.getElementById("qSubject").value;
+  const tags = tagsOf(subject);
+  const sel = document.getElementById("qTag");
+  sel.innerHTML = tags.map(t=>`<option value="${t}">${t}</option>`).join("")
+    + `<option value="__new__">＋ 新しいタグを追加...</option>`;
+  document.getElementById("qTagNewWrap").style.display = "none";
+}
+
+window.onTagSelectChange = function(){
+  const val = document.getElementById("qTag").value;
+  document.getElementById("qTagNewWrap").style.display = (val === "__new__") ? "block" : "none";
+}
+
+window.confirmNewTag = async function(){
+  const subject = document.getElementById("qSubject").value;
+  const newTag = document.getElementById("qTagNew").value.trim();
+  if(!newTag){ alert("タグ名を入力してください。"); return; }
+  if(!SUBJECT_TAGS[subject]) SUBJECT_TAGS[subject] = [];
+  if(!SUBJECT_TAGS[subject].includes(newTag)){
+    SUBJECT_TAGS[subject].push(newTag);
+    await set(ref(db, "subjectTags/"+subject), SUBJECT_TAGS[subject]);
+  }
+  populateTagSelect();
+  document.getElementById("qTag").value = newTag;
+  document.getElementById("qTagNew").value = "";
 }
 document.addEventListener("change", (e)=>{
   if(e.target && e.target.id === "qSubject"){
     document.getElementById("qSubjectLen").value = quizLenFor(e.target.value);
+    populateTagSelect();
   }
 });
 
@@ -485,7 +554,7 @@ window.switchTeacherTab = function(tab){
 window.addQuestion = async function(){
   const btn = document.getElementById("addQBtn");
   const subject = document.getElementById("qSubject").value;
-  const tag = document.getElementById("qTag").value.trim();
+  const tag = document.getElementById("qTag").value;
   const text = document.getElementById("qText").value.trim();
   const choices = [1,2,3,4,5].map(n=>({
     text: document.getElementById("qC"+n).value.trim(),
@@ -493,8 +562,8 @@ window.addQuestion = async function(){
   }));
   const answer = parseInt(document.getElementById("qAnswer").value);
 
-  if(!tag || !text || choices.some(c=>!c.text) || !answer || answer<1 || answer>5){
-    alert("分野タグ・問題文・選択肢5つ・正解番号(1〜5)をすべて入力してください。(解説は空欄でも登録できます)");
+  if(!tag || tag === "__new__" || !text || choices.some(c=>!c.text) || !answer || answer<1 || answer>5){
+    alert("分野タグ・問題文・選択肢5つ・正解番号(1〜5)をすべて入力してください。(タグが未登録の場合は「＋新しいタグを追加」で追加してから選んでください/解説は空欄でも登録できます)");
     return;
   }
   btn.disabled = true; btn.textContent = "登録中...";
