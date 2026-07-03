@@ -68,6 +68,8 @@
   .choice.wrong{border-color:var(--wrong);background:#fbecec;}
   .choice.wrong .num{background:var(--wrong);color:#fff;border-color:var(--wrong);}
   .c-explain{font-size:12px;color:#666;margin-top:6px;line-height:1.5;}
+  .choice.selected-multi{border-color:var(--gold);background:#fbf5e9;}
+  .choice.selected-multi .num{background:var(--gold);color:#fff;border-color:var(--gold);}
   .feedback{margin-top:14px;padding:14px;border-radius:10px;font-size:13px;line-height:1.6;}
   .feedback.ok{background:#eef7ef;color:var(--correct);}
   .feedback.ng{background:#fbecec;color:var(--wrong);}
@@ -140,6 +142,7 @@
       <div class="qmeta"><span id="quizCounter"></span><span class="qtag" id="quizTag"></span></div>
       <div class="qtext" id="quizText"></div>
       <div id="choicesWrap"></div>
+      <button class="secondary" id="confirmAnswerBtn" style="display:none" onclick="confirmMultiAnswer()" disabled>回答を確定する</button>
       <div id="feedbackWrap"></div>
       <button class="primary" id="nextBtn" style="display:none" onclick="nextQuestion()">次の問題へ</button>
     </section>
@@ -194,8 +197,14 @@
         <textarea id="qE4" placeholder="選択肢4の解説" style="margin-top:4px;margin-bottom:10px;min-height:44px;"></textarea>
         <div class="row2"><input type="text" id="qC5" placeholder="選択肢5"></div>
         <textarea id="qE5" placeholder="選択肢5の解説" style="margin-top:4px;margin-bottom:10px;min-height:44px;"></textarea>
-        <label>正解の番号(1〜5)</label>
-        <input type="number" id="qAnswer" min="1" max="5">
+        <label>正解(複数正解の問題はすべてチェック)</label>
+        <div class="row2" id="qAnswerChecks" style="gap:14px;align-items:center;">
+          <label style="display:flex;align-items:center;gap:4px;font-size:14px;color:var(--ink);"><input type="checkbox" class="qAns" value="1" style="width:auto;">1</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:14px;color:var(--ink);"><input type="checkbox" class="qAns" value="2" style="width:auto;">2</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:14px;color:var(--ink);"><input type="checkbox" class="qAns" value="3" style="width:auto;">3</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:14px;color:var(--ink);"><input type="checkbox" class="qAns" value="4" style="width:auto;">4</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:14px;color:var(--ink);"><input type="checkbox" class="qAns" value="5" style="width:auto;">5</label>
+        </div>
         <button class="primary" id="addQBtn" onclick="addQuestion()">この過去問を登録する</button>
 
         <h2 class="section-title" style="margin-top:28px;">登録済みの過去問<span id="qCountLabel"></span></h2>
@@ -516,11 +525,15 @@ window.startQuiz = function(subject){
   renderQuestion();
 }
 
+let selectedChoices = [];
+
 function renderQuestion(){
   const q = quizQueue[quizIndex];
+  const answers = q.answers || (q.answer ? [q.answer] : []); // 旧データ(単一answer)にも対応
+  selectedChoices = [];
   document.getElementById("quizCounter").textContent = `${quizIndex+1} / ${quizQueue.length}問`;
   document.getElementById("quizTag").textContent = q.tag;
-  document.getElementById("quizText").textContent = q.text;
+  document.getElementById("quizText").textContent = q.text + (answers.length>1 ? `(${answers.length}つ選んでください)` : "");
   document.getElementById("quizProgressBar").style.width = Math.round((quizIndex)/quizQueue.length*100)+"%";
   const wrap = document.getElementById("choicesWrap");
   wrap.innerHTML = "";
@@ -528,29 +541,64 @@ function renderQuestion(){
     const div = document.createElement("div");
     div.className = "choice";
     div.innerHTML = `<div class="num">${i+1}</div><div style="flex:1"><div class="c-text">${c.text}</div><div class="c-explain" style="display:none"></div></div>`;
-    div.onclick = ()=> selectAnswer(i+1);
+    div.onclick = ()=> onChoiceClick(i+1);
     wrap.appendChild(div);
   });
   document.getElementById("feedbackWrap").innerHTML = "";
   document.getElementById("nextBtn").style.display = "none";
+
+  const confirmBtn = document.getElementById("confirmAnswerBtn");
+  if(answers.length > 1){
+    confirmBtn.style.display = "block";
+    confirmBtn.disabled = true;
+  } else {
+    confirmBtn.style.display = "none";
+  }
 }
 
-async function selectAnswer(choiceNum){
+function onChoiceClick(choiceNum){
   const q = quizQueue[quizIndex];
-  const correct = choiceNum === q.answer;
+  const answers = q.answers || (q.answer ? [q.answer] : []);
+  if(answers.length > 1){
+    // 複数選択モード:トグルして確定ボタンを押すまで採点しない
+    const div = document.querySelectorAll("#choicesWrap .choice")[choiceNum-1];
+    const idx = selectedChoices.indexOf(choiceNum);
+    if(idx === -1){ selectedChoices.push(choiceNum); div.classList.add("selected-multi"); }
+    else { selectedChoices.splice(idx,1); div.classList.remove("selected-multi"); }
+    document.getElementById("confirmAnswerBtn").disabled = selectedChoices.length===0;
+  } else {
+    finalizeAnswer([choiceNum]);
+  }
+}
+window.onChoiceClick = onChoiceClick;
+
+window.confirmMultiAnswer = function(){
+  finalizeAnswer(selectedChoices);
+}
+
+async function finalizeAnswer(chosenArr){
+  const q = quizQueue[quizIndex];
+  const answers = (q.answers || (q.answer ? [q.answer] : [])).slice().sort((a,b)=>a-b);
+  const chosen = chosenArr.slice().sort((a,b)=>a-b);
+  const correct = JSON.stringify(chosen) === JSON.stringify(answers);
+
   const choiceDivs = document.querySelectorAll("#choicesWrap .choice");
   choiceDivs.forEach((div,i)=>{
     div.onclick = null;
-    if(i+1 === q.answer) div.classList.add("correct");
-    if(i+1 === choiceNum && !correct) div.classList.add("wrong");
+    div.classList.remove("selected-multi");
+    const isCorrectChoice = answers.includes(i+1);
+    const wasChosen = chosen.includes(i+1);
+    if(isCorrectChoice) div.classList.add("correct");
+    if(wasChosen && !isCorrectChoice) div.classList.add("wrong");
     const exp = div.querySelector(".c-explain");
     if(q.choices[i].explain){
       exp.style.display = "block";
-      exp.textContent = (i+1===q.answer ? "○ " : "✕ ") + q.choices[i].explain;
+      exp.textContent = (isCorrectChoice ? "○ " : "✕ ") + q.choices[i].explain;
     }
   });
+  document.getElementById("confirmAnswerBtn").style.display = "none";
   document.getElementById("feedbackWrap").innerHTML =
-    `<div class="feedback ${correct?'ok':'ng'}">${correct? "正解です。" : "不正解です。正解は "+q.answer+" です。"}</div>`;
+    `<div class="feedback ${correct?'ok':'ng'}">${correct? "正解です。" : "不正解です。正解は "+answers.join("、")+" です。"}</div>`;
   document.getElementById("nextBtn").style.display = "block";
   quizResults.push({subject:q.subject, tag:q.tag, correct});
 
@@ -559,7 +607,6 @@ async function selectAnswer(choiceNum){
   await set(newRef, record);
   ALL_ANSWERS[newRef.key] = record;
 }
-window.selectAnswer = selectAnswer;
 
 window.nextQuestion = function(){
   quizIndex++;
@@ -664,20 +711,21 @@ window.addQuestion = async function(){
     text: document.getElementById("qC"+n).value.trim(),
     explain: document.getElementById("qE"+n).value.trim()
   }));
-  const answer = parseInt(document.getElementById("qAnswer").value);
+  const answers = Array.from(document.querySelectorAll(".qAns:checked")).map(c=>parseInt(c.value)).sort((a,b)=>a-b);
 
-  if(!tag || tag === "__new__" || !text || choices.some(c=>!c.text) || !answer || answer<1 || answer>5){
-    alert("分野タグ・問題文・選択肢5つ・正解番号(1〜5)をすべて入力してください。(タグが未登録の場合は「＋新しいタグを追加」で追加してから選んでください/解説は空欄でも登録できます)");
+  if(!tag || tag === "__new__" || !text || choices.some(c=>!c.text) || answers.length===0){
+    alert("分野タグ・問題文・選択肢5つ・正解(1つ以上)をすべて入力してください。(タグが未登録の場合は「＋新しいタグを追加」で追加してから選んでください/解説は空欄でも登録できます)");
     return;
   }
   btn.disabled = true; btn.textContent = "登録中...";
-  const record = {subject, tag, text, choices, answer, createdAt: Date.now()};
+  const record = {subject, tag, text, choices, answers, createdAt: Date.now()};
   const newRef = push(ref(db, "questions"));
   await set(newRef, record);
   ALL_QUESTIONS[newRef.key] = record;
 
   renderRegisteredQuestions();
-  ["qTag","qText","qC1","qE1","qC2","qE2","qC3","qE3","qC4","qE4","qC5","qE5","qAnswer"].forEach(id=>document.getElementById(id).value="");
+  ["qTag","qText","qC1","qE1","qC2","qE2","qC3","qE3","qC4","qE4","qC5","qE5"].forEach(id=>document.getElementById(id).value="");
+  document.querySelectorAll(".qAns:checked").forEach(c=>c.checked=false);
   btn.disabled = false; btn.textContent = "この過去問を登録する";
 }
 
