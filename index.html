@@ -195,6 +195,10 @@
           <button type="button" class="secondary" style="margin-top:6px;" onclick="confirmNewTag()">このタグを追加する</button>
         </div>
         <p class="note">科目ごとのタグ一覧は「試験科目別出題基準」の中項目をもとにしています。誤りがあれば、プルダウン下の「＋新しいタグを追加」から直接追加・修正できます。</p>
+        <div class="row2">
+          <div><label>実施回(例: 第37回)</label><input type="text" id="qRound" placeholder="第37回"></div>
+          <div><label>問題番号(例: 問5)</label><input type="text" id="qNumber" placeholder="問5"></div>
+        </div>
         <label>問題文</label>
         <textarea id="qText" placeholder="問題文を入力"></textarea>
         <label>選択肢と解説(5つ・それぞれ「なぜ正しい/誤りか」を入力)</label>
@@ -221,8 +225,10 @@
         <button class="ghost" id="cancelEditBtn" style="display:none;" onclick="cancelEdit()">編集をやめて新規登録に戻る</button>
 
         <h2 class="section-title" style="margin-top:28px;">登録済みの過去問<span id="qCountLabel"></span></h2>
-        <label>表示する科目で絞り込み</label>
-        <select id="qFilterSubject" onchange="renderRegisteredQuestions()"></select>
+        <div class="row2">
+          <div><label>科目で絞り込み</label><select id="qFilterSubject" onchange="renderRegisteredQuestions()"></select></div>
+          <div><label>実施回で絞り込み</label><select id="qFilterRound" onchange="renderRegisteredQuestions()"></select></div>
+        </div>
         <div id="registeredQList" style="margin-top:10px;"><div class="loading">読み込み中...</div></div>
       </div>
 
@@ -764,6 +770,8 @@ window.addQuestion = async function(){
   const btn = document.getElementById("addQBtn");
   const subject = document.getElementById("qSubject").value;
   const tag = document.getElementById("qTag").value;
+  const round = document.getElementById("qRound").value.trim();
+  const number = document.getElementById("qNumber").value.trim();
   const text = document.getElementById("qText").value.trim();
   const choices = [1,2,3,4,5].map(n=>({
     text: document.getElementById("qC"+n).value.trim(),
@@ -779,17 +787,17 @@ window.addQuestion = async function(){
   if(editingId){
     btn.disabled = true; btn.textContent = "更新中...";
     const prev = ALL_QUESTIONS[editingId] || {};
-    const record = {subject, tag, text, choices, answers, createdAt: prev.createdAt || Date.now()};
+    const record = {subject, tag, round, number, text, choices, answers, createdAt: prev.createdAt || Date.now()};
     await set(ref(db, "questions/"+editingId), record);
     ALL_QUESTIONS[editingId] = record;
     cancelEdit();
   } else {
     btn.disabled = true; btn.textContent = "登録中...";
-    const record = {subject, tag, text, choices, answers, createdAt: Date.now()};
+    const record = {subject, tag, round, number, text, choices, answers, createdAt: Date.now()};
     const newRef = push(ref(db, "questions"));
     await set(newRef, record);
     ALL_QUESTIONS[newRef.key] = record;
-    ["qTag","qText","qC1","qE1","qC2","qE2","qC3","qE3","qC4","qE4","qC5","qE5"].forEach(id=>document.getElementById(id).value="");
+    ["qTag","qRound","qNumber","qText","qC1","qE1","qC2","qE2","qC3","qE3","qC4","qE4","qC5","qE5"].forEach(id=>document.getElementById(id).value="");
     document.querySelectorAll(".qAns:checked").forEach(c=>c.checked=false);
   }
 
@@ -806,6 +814,8 @@ window.editQuestion = function(id){
   populateTagSelect();
   document.getElementById("qSubjectLen").value = quizLenFor(q.subject);
   document.getElementById("qTag").value = q.tag;
+  document.getElementById("qRound").value = q.round || "";
+  document.getElementById("qNumber").value = q.number || "";
   document.getElementById("qText").value = q.text;
   [1,2,3,4,5].forEach(n=>{
     document.getElementById("qC"+n).value = q.choices[n-1] ? q.choices[n-1].text : "";
@@ -825,7 +835,7 @@ window.cancelEdit = function cancelEdit(){
   document.getElementById("addQBtn").textContent = "この過去問を登録する";
   document.getElementById("cancelEditBtn").style.display = "none";
   document.getElementById("editingNotice").style.display = "none";
-  ["qTag","qText","qC1","qE1","qC2","qE2","qC3","qE3","qC4","qE4","qC5","qE5"].forEach(id=>document.getElementById(id).value="");
+  ["qTag","qRound","qNumber","qText","qC1","qE1","qC2","qE2","qC3","qE3","qC4","qE4","qC5","qE5"].forEach(id=>document.getElementById(id).value="");
   document.querySelectorAll(".qAns:checked").forEach(c=>c.checked=false);
 }
 
@@ -838,10 +848,19 @@ window.deleteQuestion = async function(id){
 }
 
 function renderRegisteredQuestions(){
-  const filter = document.getElementById("qFilterSubject").value;
+  const filterSubject = document.getElementById("qFilterSubject").value;
+  const filterRound = document.getElementById("qFilterRound").value;
   const wrap = document.getElementById("registeredQList");
+
+  // 実施回フィルタの選択肢を更新(既存の選択は維持)
+  const roundSel = document.getElementById("qFilterRound");
+  const rounds = [...new Set(Object.values(ALL_QUESTIONS).map(q=>q.round).filter(Boolean))].sort();
+  const prevRoundVal = roundSel.value;
+  roundSel.innerHTML = `<option value="">すべての実施回</option>` + rounds.map(r=>`<option value="${r}">${r}</option>`).join("");
+  roundSel.value = rounds.includes(prevRoundVal) ? prevRoundVal : "";
+
   const entries = Object.entries(ALL_QUESTIONS)
-    .filter(([id,q])=> !filter || q.subject===filter)
+    .filter(([id,q])=> (!filterSubject || q.subject===filterSubject) && (!filterRound || q.round===filterRound))
     .sort((a,b)=> (b[1].createdAt||0) - (a[1].createdAt||0));
   document.getElementById("qCountLabel").textContent = `(全${Object.keys(ALL_QUESTIONS).length}問)`;
   wrap.innerHTML = "";
@@ -852,11 +871,12 @@ function renderRegisteredQuestions(){
   entries.forEach(([id,q])=>{
     const div = document.createElement("div");
     div.className = "qcard";
+    const roundLabel = (q.round || q.number) ? `<span class="qtag" style="margin-left:6px;">${[q.round,q.number].filter(Boolean).join(" ")}</span>` : "";
     div.innerHTML = `
       <button class="del" style="right:66px;color:var(--navy);" onclick="editQuestion('${id}')">編集</button>
       <button class="del" onclick="deleteQuestion('${id}')">削除</button>
       <div class="s-name">${q.text.slice(0,32)}${q.text.length>32?"…":""}</div>
-      <div class="s-meta">${q.subject} / ${q.tag}</div>
+      <div class="s-meta">${q.subject} / ${q.tag}${roundLabel}</div>
     `;
     wrap.appendChild(div);
   });
