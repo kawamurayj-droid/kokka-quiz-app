@@ -230,7 +230,8 @@
       <h3 style="font-size:13px;color:var(--wrong);margin-top:18px;">苦手分野(正答率50%未満)</h3>
       <div id="detailWeakTags"></div>
       <h3 style="font-size:13px;color:var(--navy);margin-top:18px;">解答履歴</h3>
-      <table id="detailHistoryTable"></table>
+      <div id="detailHistoryTable"></div>
+      <button class="danger" id="detailDeleteBtn" onclick="deleteStudentFromDetail()">この学生を削除する</button>
     </section>
 
   </main>
@@ -403,6 +404,7 @@ let ALL_ANSWERS = {};     // id -> {studentId, subject, tag, correct, date}
 let QUIZ_LENGTHS = {};    // subject -> number
 let SUBJECT_TAGS = {};    // subject -> [tag, tag, ...]
 let currentStudent = null;
+let currentDetailStudentId = null;
 let quizQueue = [];
 let quizIndex = 0;
 let quizResults = [];
@@ -825,19 +827,60 @@ function renderStudentList(){
     const correct = logs.filter(l=>l.correct).length;
     const div = document.createElement("div");
     div.className = "student-row";
+    div.style.position = "relative";
     div.onclick = ()=> showStudentDetail(id);
     div.innerHTML = `
       <div><div class="name">${s.last} ${s.first}</div><div class="id">学籍番号: ${id}</div></div>
-      <div class="stat">${total>0? `${correct}/${total}問(全体${Math.round(correct/total*100)}%)` : "未回答"}</div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div class="stat">${total>0? `${correct}/${total}問(全体${Math.round(correct/total*100)}%)` : "未回答"}</div>
+        <button class="del" style="position:static;" onclick="event.stopPropagation(); deleteStudent('${id}')">削除</button>
+      </div>
     `;
     wrap.appendChild(div);
   });
 }
 
+window.deleteStudent = async function(id){
+  const s = ALL_STUDENTS[id];
+  const name = s ? `${s.last} ${s.first}(${id})` : id;
+  if(!confirm(`${name} を削除しますか？この学生の解答履歴もすべて削除されます。`)) return;
+
+  await remove(ref(db, "students/"+id));
+  delete ALL_STUDENTS[id];
+
+  const toDelete = Object.entries(ALL_ANSWERS).filter(([aid,a])=>a.studentId===id).map(([aid])=>aid);
+  await Promise.all(toDelete.map(aid=> remove(ref(db, "answers/"+aid))));
+  toDelete.forEach(aid=> delete ALL_ANSWERS[aid]);
+
+  renderStudentList();
+}
+
+window.deleteStudentFromDetail = async function(){
+  if(!currentDetailStudentId) return;
+  const id = currentDetailStudentId;
+  const s = ALL_STUDENTS[id];
+  const name = s ? `${s.last} ${s.first}(${id})` : id;
+  if(!confirm(`${name} を削除しますか？この学生の解答履歴もすべて削除されます。`)) return;
+
+  await remove(ref(db, "students/"+id));
+  delete ALL_STUDENTS[id];
+  const toDelete = Object.entries(ALL_ANSWERS).filter(([aid,a])=>a.studentId===id).map(([aid])=>aid);
+  await Promise.all(toDelete.map(aid=> remove(ref(db, "answers/"+aid))));
+  toDelete.forEach(aid=> delete ALL_ANSWERS[aid]);
+
+  currentDetailStudentId = null;
+  switchTeacherTab('s');
+  showScreen('screen-teacher-dash');
+}
+
+let detailLogsCache = [];
+
 function showStudentDetail(id){
+  currentDetailStudentId = id;
   const s = ALL_STUDENTS[id];
   document.getElementById("detailStuName").textContent = `${s.last} ${s.first}(${id})`;
   const logs = answersOfStudent(id);
+  detailLogsCache = logs;
 
   const bySubject = {};
   logs.forEach(l=>{
@@ -852,24 +895,71 @@ function showStudentDetail(id){
   });
   document.getElementById("detailSubjectTable").innerHTML = subRows || `<tr><td>データなし</td></tr>`;
 
-  const byTag = {};
-  logs.forEach(l=>{
-    byTag[l.tag] = byTag[l.tag] || {total:0, correct:0};
-    byTag[l.tag].total++;
-    if(l.correct) byTag[l.tag].correct++;
-  });
-  const weak = Object.keys(byTag).filter(tag=> (byTag[tag].correct/byTag[tag].total) < 0.5);
-  document.getElementById("detailWeakTags").innerHTML = weak.length
-    ? weak.map(tag=>`<div class="weak-tag"><span>${tag}</span><span>${byTag[tag].correct}/${byTag[tag].total}</span></div>`).join("")
-    : `<p class="center-note">苦手分野は見つかりませんでした。</p>`;
-
-  let histRows = `<tr><th>日付</th><th>科目/分野</th><th>結果</th></tr>`;
-  logs.slice().sort((a,b)=>(b.timestamp||0)-(a.timestamp||0)).forEach(l=>{
-    histRows += `<tr><td>${l.date}</td><td>${l.subject}<br><span style="color:#999">${l.tag}</span></td><td style="color:${l.correct?'var(--correct)':'var(--wrong)'}">${l.correct?'正解':'不正解'}</td></tr>`;
-  });
-  document.getElementById("detailHistoryTable").innerHTML = histRows;
+  renderWeakBySubject();
+  renderHistoryByDate();
 
   showScreen("screen-student-detail");
+}
+
+function renderWeakBySubject(){
+  const wrap = document.getElementById("detailWeakTags");
+  const subjects = [...new Set(detailLogsCache.map(l=>l.subject))];
+  if(subjects.length===0){
+    wrap.innerHTML = `<p class="center-note">まだ回答がありません。</p>`;
+    return;
+  }
+  wrap.innerHTML = subjects.map(sub=>{
+    const logs = detailLogsCache.filter(l=>l.subject===sub);
+    const byTag = {};
+    logs.forEach(l=>{
+      byTag[l.tag] = byTag[l.tag] || {total:0, correct:0};
+      byTag[l.tag].total++;
+      if(l.correct) byTag[l.tag].correct++;
+    });
+    const weak = Object.keys(byTag).filter(tag=> (byTag[tag].correct/byTag[tag].total) < 0.5);
+    const safeId = "w_" + sub.replace(/[^a-zA-Z0-9ぁ-んァ-ヶ一-龠]/g,"_");
+    const inner = weak.length
+      ? weak.map(tag=>`<div class="weak-tag"><span>${tag}</span><span>${byTag[tag].correct}/${byTag[tag].total}</span></div>`).join("")
+      : `<p class="center-note" style="padding:10px 0;">この科目に苦手分野は見つかりませんでした。</p>`;
+    return `
+      <div class="subject-item" style="cursor:pointer;" onclick="toggleAccordion('${safeId}')">
+        <div class="s-name">${sub}</div>
+        <div class="s-rate ${weak.length? 'weak':''}">${weak.length ? weak.length+"件" : "なし"}</div>
+      </div>
+      <div id="${safeId}" style="display:none;padding:6px 4px 10px;">${inner}</div>
+    `;
+  }).join("");
+}
+
+function renderHistoryByDate(){
+  const wrap = document.getElementById("detailHistoryTable");
+  const dates = [...new Set(detailLogsCache.map(l=>l.date))].sort((a,b)=> b.localeCompare(a));
+  if(dates.length===0){
+    wrap.innerHTML = `<p class="center-note">まだ回答がありません。</p>`;
+    return;
+  }
+  wrap.innerHTML = dates.map(date=>{
+    const logs = detailLogsCache.filter(l=>l.date===date).sort((a,b)=>(b.timestamp||0)-(a.timestamp||0));
+    const total = logs.length;
+    const correct = logs.filter(l=>l.correct).length;
+    const safeId = "h_" + date.replace(/[^0-9]/g,"_");
+    const inner = `<table><tr><th>科目/分野</th><th>結果</th></tr>` +
+      logs.map(l=>`<tr><td>${l.subject}<br><span style="color:#999">${l.tag}</span></td><td style="color:${l.correct?'var(--correct)':'var(--wrong)'}">${l.correct?'正解':'不正解'}</td></tr>`).join("") +
+      `</table>`;
+    return `
+      <div class="subject-item" style="cursor:pointer;" onclick="toggleAccordion('${safeId}')">
+        <div class="s-name">${date}</div>
+        <div class="s-rate">${correct}/${total}</div>
+      </div>
+      <div id="${safeId}" style="display:none;padding:6px 4px 10px;">${inner}</div>
+    `;
+  }).join("");
+}
+
+window.toggleAccordion = function(id){
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.style.display = el.style.display === "none" ? "block" : "none";
 }
 window.showStudentDetail = showStudentDetail;
 
