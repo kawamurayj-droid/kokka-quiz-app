@@ -205,7 +205,9 @@
           <label style="display:flex;align-items:center;gap:4px;font-size:14px;color:var(--ink);"><input type="checkbox" class="qAns" value="4" style="width:auto;">4</label>
           <label style="display:flex;align-items:center;gap:4px;font-size:14px;color:var(--ink);"><input type="checkbox" class="qAns" value="5" style="width:auto;">5</label>
         </div>
+        <p class="note" id="editingNotice" style="display:none;color:var(--gold);font-weight:700;">この過去問を編集中です。内容を直して「この内容で更新する」を押してください。</p>
         <button class="primary" id="addQBtn" onclick="addQuestion()">この過去問を登録する</button>
+        <button class="ghost" id="cancelEditBtn" style="display:none;" onclick="cancelEdit()">編集をやめて新規登録に戻る</button>
 
         <h2 class="section-title" style="margin-top:28px;">登録済みの過去問<span id="qCountLabel"></span></h2>
         <label>表示する科目で絞り込み</label>
@@ -701,7 +703,9 @@ window.switchTeacherTab = function(tab){
   if(tab==='s') renderStudentList();
 }
 
-/* ===================== 教員: 過去問登録 ===================== */
+/* ===================== 教員: 過去問登録・編集 ===================== */
+let editingId = null;
+
 window.addQuestion = async function(){
   const btn = document.getElementById("addQBtn");
   const subject = document.getElementById("qSubject").value;
@@ -717,22 +721,65 @@ window.addQuestion = async function(){
     alert("分野タグ・問題文・選択肢5つ・正解(1つ以上)をすべて入力してください。(タグが未登録の場合は「＋新しいタグを追加」で追加してから選んでください/解説は空欄でも登録できます)");
     return;
   }
-  btn.disabled = true; btn.textContent = "登録中...";
-  const record = {subject, tag, text, choices, answers, createdAt: Date.now()};
-  const newRef = push(ref(db, "questions"));
-  await set(newRef, record);
-  ALL_QUESTIONS[newRef.key] = record;
+
+  if(editingId){
+    btn.disabled = true; btn.textContent = "更新中...";
+    const prev = ALL_QUESTIONS[editingId] || {};
+    const record = {subject, tag, text, choices, answers, createdAt: prev.createdAt || Date.now()};
+    await set(ref(db, "questions/"+editingId), record);
+    ALL_QUESTIONS[editingId] = record;
+    cancelEdit();
+  } else {
+    btn.disabled = true; btn.textContent = "登録中...";
+    const record = {subject, tag, text, choices, answers, createdAt: Date.now()};
+    const newRef = push(ref(db, "questions"));
+    await set(newRef, record);
+    ALL_QUESTIONS[newRef.key] = record;
+    ["qTag","qText","qC1","qE1","qC2","qE2","qC3","qE3","qC4","qE4","qC5","qE5"].forEach(id=>document.getElementById(id).value="");
+    document.querySelectorAll(".qAns:checked").forEach(c=>c.checked=false);
+  }
 
   renderRegisteredQuestions();
+  btn.disabled = false;
+  btn.textContent = editingId ? "この内容で更新する" : "この過去問を登録する";
+}
+
+window.editQuestion = function(id){
+  const q = ALL_QUESTIONS[id];
+  if(!q) return;
+  editingId = id;
+  document.getElementById("qSubject").value = q.subject;
+  populateTagSelect();
+  document.getElementById("qSubjectLen").value = quizLenFor(q.subject);
+  document.getElementById("qTag").value = q.tag;
+  document.getElementById("qText").value = q.text;
+  [1,2,3,4,5].forEach(n=>{
+    document.getElementById("qC"+n).value = q.choices[n-1] ? q.choices[n-1].text : "";
+    document.getElementById("qE"+n).value = q.choices[n-1] ? q.choices[n-1].explain : "";
+  });
+  const answers = q.answers || (q.answer ? [q.answer] : []);
+  document.querySelectorAll(".qAns").forEach(c=>{ c.checked = answers.includes(parseInt(c.value)); });
+
+  document.getElementById("addQBtn").textContent = "この内容で更新する";
+  document.getElementById("cancelEditBtn").style.display = "block";
+  document.getElementById("editingNotice").style.display = "block";
+  window.scrollTo(0,0);
+}
+
+window.cancelEdit = function cancelEdit(){
+  editingId = null;
+  document.getElementById("addQBtn").textContent = "この過去問を登録する";
+  document.getElementById("cancelEditBtn").style.display = "none";
+  document.getElementById("editingNotice").style.display = "none";
   ["qTag","qText","qC1","qE1","qC2","qE2","qC3","qE3","qC4","qE4","qC5","qE5"].forEach(id=>document.getElementById(id).value="");
   document.querySelectorAll(".qAns:checked").forEach(c=>c.checked=false);
-  btn.disabled = false; btn.textContent = "この過去問を登録する";
 }
 
 window.deleteQuestion = async function(id){
   if(!confirm("この過去問を削除しますか？")) return;
   await remove(ref(db, "questions/"+id));
   delete ALL_QUESTIONS[id];
+  if(editingId === id) cancelEdit();
   renderRegisteredQuestions();
 }
 
@@ -752,6 +799,7 @@ function renderRegisteredQuestions(){
     const div = document.createElement("div");
     div.className = "qcard";
     div.innerHTML = `
+      <button class="del" style="right:66px;color:var(--navy);" onclick="editQuestion('${id}')">編集</button>
       <button class="del" onclick="deleteQuestion('${id}')">削除</button>
       <div class="s-name">${q.text.slice(0,32)}${q.text.length>32?"…":""}</div>
       <div class="s-meta">${q.subject} / ${q.tag}</div>
