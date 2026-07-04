@@ -135,7 +135,17 @@
     <section class="screen" id="screen-subject-select">
       <span class="backlink" onclick="showScreen('screen-student-login')">← 戻る</span>
       <h2 class="section-title"><span id="stuGreeting"></span>さん・科目を選択</h2>
+      <div class="role-card" style="margin-bottom:14px;" onclick="openExamSetup()">
+        <h3 style="font-size:15px;">模擬試験モード</h3>
+        <p>実施回を選んで、その回の問題を通しで解きます(科目別ではなく本番形式)。</p>
+      </div>
       <div class="subject-list" id="subjectList"><div class="loading">読み込み中...</div></div>
+    </section>
+
+    <section class="screen" id="screen-exam-setup">
+      <span class="backlink" onclick="showScreen('screen-subject-select')">← 戻る</span>
+      <h2 class="section-title">模擬試験モード・実施回を選択</h2>
+      <div class="subject-list" id="examRoundList"></div>
     </section>
 
     <section class="screen" id="screen-quiz-setup">
@@ -150,7 +160,7 @@
     <section class="screen" id="screen-quiz">
       <span class="backlink" onclick="showScreen('screen-subject-select')">← 科目選択に戻る</span>
       <div class="progressbar"><div id="quizProgressBar" style="width:0%"></div></div>
-      <div class="qmeta"><span id="quizCounter"></span><span class="qtag" id="quizTag"></span></div>
+      <div class="qmeta"><span id="quizCounter"></span><span style="display:flex;gap:6px;"><span class="qtag" id="quizRoundBadge" style="display:none;background:#f3ede0;color:var(--gold);"></span><span class="qtag" id="quizTag"></span></span></div>
       <div class="qtext" id="quizText"></div>
       <div id="choicesWrap"></div>
       <button class="secondary" id="confirmAnswerBtn" style="display:none" onclick="confirmMultiAnswer()" disabled>回答を確定する</button>
@@ -161,6 +171,10 @@
     <section class="screen" id="screen-result">
       <h2 class="section-title">結果</h2>
       <div id="resultSummary"></div>
+      <div id="resultSubjectWrap" style="display:none;">
+        <h3 style="font-size:13px;color:var(--navy);margin-top:20px;">科目別の正答状況</h3>
+        <table id="resultSubjectTable"></table>
+      </div>
       <h3 style="font-size:13px;color:var(--navy);margin-top:20px;">分野別の正答状況</h3>
       <table id="resultTagTable"></table>
       <button class="primary" onclick="showScreen('screen-subject-select')">他の科目を解く</button>
@@ -478,6 +492,20 @@ function answersOfStudent(studentId){
   return Object.values(ALL_ANSWERS).filter(a=>a.studentId===studentId);
 }
 
+function numberSortKey(q){
+  const m = (q.number||"").match(/(\d+)/);
+  return m ? parseInt(m[1]) : 99999;
+}
+function availableRounds(){
+  return [...new Set(Object.values(ALL_QUESTIONS).map(q=>q.round).filter(Boolean))].sort();
+}
+function questionsOfRound(round){
+  return Object.entries(ALL_QUESTIONS)
+    .filter(([id,q])=>q.round===round)
+    .map(([id,q])=>({id, ...q}))
+    .sort((a,b)=> numberSortKey(a) - numberSortKey(b));
+}
+
 /* ===================== 学生ログイン ===================== */
 window.tryAutofill = function(){
   const id = document.getElementById("stuId").value.trim();
@@ -576,11 +604,44 @@ window.startQuizWithCount = function(){
   startQuiz(setupSubject, selectedQuizCount);
 }
 
+/* ===================== 模擬試験モード ===================== */
+function openExamSetup(){
+  const rounds = availableRounds();
+  const wrap = document.getElementById("examRoundList");
+  if(rounds.length===0){
+    wrap.innerHTML = `<p class="center-note">実施回が登録された過去問がまだありません。</p>`;
+  } else {
+    wrap.innerHTML = rounds.map(round=>{
+      const count = questionsOfRound(round).length;
+      return `
+        <div class="subject-item" onclick="startExamMode('${round}')">
+          <div><div class="s-name">${round}</div><div class="s-meta">${count}問</div></div>
+          <div class="s-rate">開始</div>
+        </div>
+      `;
+    }).join("");
+  }
+  showScreen("screen-exam-setup");
+}
+window.openExamSetup = openExamSetup;
+
+window.startExamMode = function(round){
+  quizQueue = questionsOfRound(round);
+  quizMode = "exam";
+  quizIndex = 0;
+  quizResults = [];
+  showScreen("screen-quiz");
+  renderQuestion();
+}
+
 /* ===================== 出題 ===================== */
+let quizMode = "random"; // "random"(科目別ランダム) or "exam"(模擬試験)
+
 window.startQuiz = function(subject, count){
   const pool = questionsOf(subject);
   const n = count || Math.min(quizLenFor(subject), pool.length);
   quizQueue = shuffle(pool).slice(0, n);
+  quizMode = "random";
   quizIndex = 0;
   quizResults = [];
   showScreen("screen-quiz");
@@ -595,6 +656,13 @@ function renderQuestion(){
   selectedChoices = [];
   document.getElementById("quizCounter").textContent = `${quizIndex+1} / ${quizQueue.length}問`;
   document.getElementById("quizTag").textContent = q.tag;
+  const roundBadge = document.getElementById("quizRoundBadge");
+  if(q.round || q.number){
+    roundBadge.style.display = "inline-block";
+    roundBadge.textContent = [q.round, q.number].filter(Boolean).join(" ");
+  } else {
+    roundBadge.style.display = "none";
+  }
   document.getElementById("quizText").textContent = q.text + (answers.length>1 ? `(${answers.length}つ選んでください)` : "");
   document.getElementById("quizProgressBar").style.width = Math.round((quizIndex)/quizQueue.length*100)+"%";
   const wrap = document.getElementById("choicesWrap");
@@ -680,6 +748,26 @@ function showResult(){
   const correct = quizResults.filter(r=>r.correct).length;
   document.getElementById("resultSummary").innerHTML =
     `<p style="font-size:15px;">今回の正答: <strong style="color:var(--navy);font-size:20px;">${correct} / ${total}</strong>問</p>`;
+
+  const subjectWrap = document.getElementById("resultSubjectWrap");
+  if(quizMode === "exam"){
+    const bySubject = {};
+    quizResults.forEach(r=>{
+      bySubject[r.subject] = bySubject[r.subject] || {total:0, correct:0};
+      bySubject[r.subject].total++;
+      if(r.correct) bySubject[r.subject].correct++;
+    });
+    let subRows = `<tr><th>科目</th><th>正答率</th></tr>`;
+    Object.keys(bySubject).forEach(sub=>{
+      const t = bySubject[sub];
+      subRows += `<tr><td>${sub}</td><td>${t.correct}/${t.total}(${Math.round(t.correct/t.total*100)}%)</td></tr>`;
+    });
+    document.getElementById("resultSubjectTable").innerHTML = subRows;
+    subjectWrap.style.display = "block";
+  } else {
+    subjectWrap.style.display = "none";
+  }
+
   const byTag = {};
   quizResults.forEach(r=>{
     byTag[r.tag] = byTag[r.tag] || {total:0, correct:0};
