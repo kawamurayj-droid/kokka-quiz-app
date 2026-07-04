@@ -132,18 +132,29 @@
       <button class="primary" onclick="studentLogin()">ログインして科目を選ぶ</button>
     </section>
 
-    <section class="screen" id="screen-subject-select">
+    <section class="screen" id="screen-mode-select">
       <span class="backlink" onclick="showScreen('screen-student-login')">← 戻る</span>
-      <h2 class="section-title"><span id="stuGreeting"></span>さん・科目を選択</h2>
-      <div class="role-card" style="margin-bottom:14px;" onclick="openExamSetup()">
-        <h3 style="font-size:15px;">模擬試験モード</h3>
-        <p>実施回を選んで、その回の問題を通しで解きます(科目別ではなく本番形式)。</p>
+      <h2 class="section-title"><span id="stuGreeting"></span>さん・学習方法を選択</h2>
+      <div class="role-cards">
+        <div class="role-card" onclick="openExamSetup()">
+          <h3>模擬試験モード</h3>
+          <p>実施回を選んで、その回の問題を通しで解きます(科目をまたいで本番形式)。</p>
+        </div>
+        <div class="role-card" onclick="showScreen('screen-subject-select')">
+          <h3>科目別モード</h3>
+          <p>科目を選んで、その科目の過去問からランダムに出題されます。問題数も選べます。</p>
+        </div>
       </div>
+    </section>
+
+    <section class="screen" id="screen-subject-select">
+      <span class="backlink" onclick="showScreen('screen-mode-select')">← 戻る</span>
+      <h2 class="section-title">科目を選択</h2>
       <div class="subject-list" id="subjectList"><div class="loading">読み込み中...</div></div>
     </section>
 
     <section class="screen" id="screen-exam-setup">
-      <span class="backlink" onclick="showScreen('screen-subject-select')">← 戻る</span>
+      <span class="backlink" onclick="showScreen('screen-mode-select')">← 戻る</span>
       <h2 class="section-title">模擬試験モード・実施回を選択</h2>
       <div class="subject-list" id="examRoundList"></div>
     </section>
@@ -158,7 +169,7 @@
     </section>
 
     <section class="screen" id="screen-quiz">
-      <span class="backlink" onclick="showScreen('screen-subject-select')">← 科目選択に戻る</span>
+      <span class="backlink" onclick="quizBackToSelect()">← 選択に戻る</span>
       <div class="progressbar"><div id="quizProgressBar" style="width:0%"></div></div>
       <div class="qmeta"><span id="quizCounter"></span><span style="display:flex;gap:6px;"><span class="qtag" id="quizRoundBadge" style="display:none;background:#f3ede0;color:var(--gold);"></span><span class="qtag" id="quizTag"></span></span></div>
       <div class="qtext" id="quizText"></div>
@@ -177,7 +188,7 @@
       </div>
       <h3 style="font-size:13px;color:var(--navy);margin-top:20px;">分野別の正答状況</h3>
       <table id="resultTagTable"></table>
-      <button class="primary" onclick="showScreen('screen-subject-select')">他の科目を解く</button>
+      <button class="primary" onclick="showScreen('screen-mode-select')">続けて学習する</button>
       <button class="secondary" onclick="goHome()">終了する</button>
     </section>
 
@@ -529,7 +540,7 @@ window.studentLogin = async function(){
   currentStudent = {id, last, first};
   document.getElementById("stuGreeting").textContent = last + " " + first;
   renderSubjectList();
-  showScreen("screen-subject-select");
+  showScreen("screen-mode-select");
 }
 
 function subjectStats(subject){
@@ -636,6 +647,10 @@ window.startExamMode = function(round){
 
 /* ===================== 出題 ===================== */
 let quizMode = "random"; // "random"(科目別ランダム) or "exam"(模擬試験)
+
+window.quizBackToSelect = function(){
+  showScreen(quizMode === "exam" ? "screen-exam-setup" : "screen-subject-select");
+}
 
 window.startQuiz = function(subject, count){
   const pool = questionsOf(subject);
