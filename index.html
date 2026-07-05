@@ -70,6 +70,9 @@
   .c-explain{font-size:12px;color:#666;margin-top:6px;line-height:1.5;}
   .count-btn{padding:10px 16px;border:1px solid var(--line);border-radius:20px;background:#fff;font-size:14px;cursor:pointer;color:var(--ink);}
   .count-btn.active{background:var(--navy);color:#fff;border-color:var(--navy);}
+  .tag-check{display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:16px;padding:6px 12px;font-size:13px;cursor:pointer;background:#fff;}
+  .tag-check input{width:auto;margin:0;}
+  .tag-check.checked{background:#eef1f6;border-color:var(--navy);color:var(--navy);}
   .choice.selected-multi{border-color:var(--gold);background:#fbf5e9;}
   .choice.selected-multi .num{background:var(--gold);color:#fff;border-color:var(--gold);}
   .feedback{margin-top:14px;padding:14px;border-radius:10px;font-size:13px;line-height:1.6;}
@@ -213,13 +216,13 @@
         <select id="qSubject"></select>
         <label>この科目の出題数(ランダムに何問出題するか)</label>
         <input type="number" id="qSubjectLen" min="1" max="50" value="10" onchange="saveQuizLength()">
-        <label>分野タグ(苦手分野分析に使用)</label>
-        <select id="qTag" onchange="onTagSelectChange()"></select>
-        <div id="qTagNewWrap" style="display:none;margin-top:6px;">
+        <label>分野タグ(苦手分野分析に使用・複数の分野にまたがる問題は複数チェック可)</label>
+        <div id="qTagChecks" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+        <div id="qTagNewWrap" style="margin-top:8px;">
           <input type="text" id="qTagNew" placeholder="新しいタグ名を入力">
           <button type="button" class="secondary" style="margin-top:6px;" onclick="confirmNewTag()">このタグを追加する</button>
         </div>
-        <p class="note">科目ごとのタグ一覧は「試験科目別出題基準」の中項目をもとにしています。誤りがあれば、プルダウン下の「＋新しいタグを追加」から直接追加・修正できます。</p>
+        <p class="note">科目ごとのタグ一覧は「試験科目別出題基準」の中項目をもとにしています。誤りがあれば、上の欄から直接追加できます。</p>
         <div class="row2">
           <div><label>実施回(例: 第37回)</label><input type="text" id="qRound" placeholder="第37回"></div>
           <div><label>問題番号(例: 問5)</label><input type="text" id="qNumber" placeholder="問5"></div>
@@ -670,7 +673,7 @@ function renderQuestion(){
   const answers = q.answers || (q.answer ? [q.answer] : []); // 旧データ(単一answer)にも対応
   selectedChoices = [];
   document.getElementById("quizCounter").textContent = `${quizIndex+1} / ${quizQueue.length}問`;
-  document.getElementById("quizTag").textContent = q.tag;
+  document.getElementById("quizTag").textContent = (q.tags || (q.tag?[q.tag]:[])).join("・");
   const roundBadge = document.getElementById("quizRoundBadge");
   if(q.round || q.number){
     roundBadge.style.display = "inline-block";
@@ -745,9 +748,10 @@ async function finalizeAnswer(chosenArr){
   document.getElementById("feedbackWrap").innerHTML =
     `<div class="feedback ${correct?'ok':'ng'}">${correct? "正解です。" : "不正解です。正解は "+answers.join("、")+" です。"}</div>`;
   document.getElementById("nextBtn").style.display = "block";
-  quizResults.push({subject:q.subject, tag:q.tag, correct});
+  const qTags = q.tags || (q.tag ? [q.tag] : []);
+  quizResults.push({subject:q.subject, tags:qTags, correct});
 
-  const record = {studentId:currentStudent.id, subject:q.subject, tag:q.tag, correct, date:todayStr(), timestamp:Date.now()};
+  const record = {studentId:currentStudent.id, subject:q.subject, tags:qTags, correct, date:todayStr(), timestamp:Date.now()};
   const newRef = push(ref(db, "answers"));
   await set(newRef, record);
   ALL_ANSWERS[newRef.key] = record;
@@ -785,9 +789,11 @@ function showResult(){
 
   const byTag = {};
   quizResults.forEach(r=>{
-    byTag[r.tag] = byTag[r.tag] || {total:0, correct:0};
-    byTag[r.tag].total++;
-    if(r.correct) byTag[r.tag].correct++;
+    (r.tags || (r.tag?[r.tag]:[])).forEach(tag=>{
+      byTag[tag] = byTag[tag] || {total:0, correct:0};
+      byTag[tag].total++;
+      if(r.correct) byTag[tag].correct++;
+    });
   });
   let rows = `<tr><th>分野タグ</th><th>正答率</th></tr>`;
   Object.keys(byTag).forEach(tag=>{
@@ -814,21 +820,18 @@ function populateSubjectSelects(){
   document.getElementById("qSubject").innerHTML = opts;
   document.getElementById("qFilterSubject").innerHTML = `<option value="">すべての科目</option>` + opts;
   document.getElementById("qSubjectLen").value = quizLenFor(document.getElementById("qSubject").value);
-  populateTagSelect();
+  populateTagChecks();
 }
 
-function populateTagSelect(){
+function populateTagChecks(checkedTags){
+  checkedTags = checkedTags || [];
   const subject = document.getElementById("qSubject").value;
   const tags = tagsOf(subject);
-  const sel = document.getElementById("qTag");
-  sel.innerHTML = tags.map(t=>`<option value="${t}">${t}</option>`).join("")
-    + `<option value="__new__">＋ 新しいタグを追加...</option>`;
-  document.getElementById("qTagNewWrap").style.display = "none";
-}
-
-window.onTagSelectChange = function(){
-  const val = document.getElementById("qTag").value;
-  document.getElementById("qTagNewWrap").style.display = (val === "__new__") ? "block" : "none";
+  const wrap = document.getElementById("qTagChecks");
+  wrap.innerHTML = tags.map(t=>{
+    const isChecked = checkedTags.includes(t);
+    return `<label class="tag-check ${isChecked?'checked':''}"><input type="checkbox" class="qTagChk" value="${t}" ${isChecked?'checked':''} onchange="this.parentElement.classList.toggle('checked', this.checked)">${t}</label>`;
+  }).join("");
 }
 
 window.confirmNewTag = async function(){
@@ -840,14 +843,15 @@ window.confirmNewTag = async function(){
     SUBJECT_TAGS[subject].push(newTag);
     await set(ref(db, "subjectTags/"+subject), SUBJECT_TAGS[subject]);
   }
-  populateTagSelect();
-  document.getElementById("qTag").value = newTag;
+  const currentlyChecked = Array.from(document.querySelectorAll(".qTagChk:checked")).map(c=>c.value);
+  currentlyChecked.push(newTag);
+  populateTagChecks(currentlyChecked);
   document.getElementById("qTagNew").value = "";
 }
 document.addEventListener("change", (e)=>{
   if(e.target && e.target.id === "qSubject"){
     document.getElementById("qSubjectLen").value = quizLenFor(e.target.value);
-    populateTagSelect();
+    populateTagChecks();
   }
 });
 
@@ -872,7 +876,7 @@ let editingId = null;
 window.addQuestion = async function(){
   const btn = document.getElementById("addQBtn");
   const subject = document.getElementById("qSubject").value;
-  const tag = document.getElementById("qTag").value;
+  const tags = Array.from(document.querySelectorAll(".qTagChk:checked")).map(c=>c.value);
   const round = document.getElementById("qRound").value.trim();
   const number = document.getElementById("qNumber").value.trim();
   const text = document.getElementById("qText").value.trim();
@@ -882,26 +886,27 @@ window.addQuestion = async function(){
   }));
   const answers = Array.from(document.querySelectorAll(".qAns:checked")).map(c=>parseInt(c.value)).sort((a,b)=>a-b);
 
-  if(!tag || tag === "__new__" || !text || choices.some(c=>!c.text) || answers.length===0){
-    alert("分野タグ・問題文・選択肢5つ・正解(1つ以上)をすべて入力してください。(タグが未登録の場合は「＋新しいタグを追加」で追加してから選んでください/解説は空欄でも登録できます)");
+  if(tags.length===0 || !text || choices.some(c=>!c.text) || answers.length===0){
+    alert("分野タグ(1つ以上)・問題文・選択肢5つ・正解(1つ以上)をすべて入力してください。(解説は空欄でも登録できます)");
     return;
   }
 
   if(editingId){
     btn.disabled = true; btn.textContent = "更新中...";
     const prev = ALL_QUESTIONS[editingId] || {};
-    const record = {subject, tag, round, number, text, choices, answers, createdAt: prev.createdAt || Date.now()};
+    const record = {subject, tags, round, number, text, choices, answers, createdAt: prev.createdAt || Date.now()};
     await set(ref(db, "questions/"+editingId), record);
     ALL_QUESTIONS[editingId] = record;
     cancelEdit();
   } else {
     btn.disabled = true; btn.textContent = "登録中...";
-    const record = {subject, tag, round, number, text, choices, answers, createdAt: Date.now()};
+    const record = {subject, tags, round, number, text, choices, answers, createdAt: Date.now()};
     const newRef = push(ref(db, "questions"));
     await set(newRef, record);
     ALL_QUESTIONS[newRef.key] = record;
-    ["qTag","qRound","qNumber","qText","qC1","qE1","qC2","qE2","qC3","qE3","qC4","qE4","qC5","qE5"].forEach(id=>document.getElementById(id).value="");
+    ["qRound","qNumber","qText","qC1","qE1","qC2","qE2","qC3","qE3","qC4","qE4","qC5","qE5"].forEach(id=>document.getElementById(id).value="");
     document.querySelectorAll(".qAns:checked").forEach(c=>c.checked=false);
+    populateTagChecks();
   }
 
   renderRegisteredQuestions();
@@ -914,9 +919,9 @@ window.editQuestion = function(id){
   if(!q) return;
   editingId = id;
   document.getElementById("qSubject").value = q.subject;
-  populateTagSelect();
+  const tags = q.tags || (q.tag ? [q.tag] : []);
+  populateTagChecks(tags);
   document.getElementById("qSubjectLen").value = quizLenFor(q.subject);
-  document.getElementById("qTag").value = q.tag;
   document.getElementById("qRound").value = q.round || "";
   document.getElementById("qNumber").value = q.number || "";
   document.getElementById("qText").value = q.text;
@@ -938,8 +943,9 @@ window.cancelEdit = function cancelEdit(){
   document.getElementById("addQBtn").textContent = "この過去問を登録する";
   document.getElementById("cancelEditBtn").style.display = "none";
   document.getElementById("editingNotice").style.display = "none";
-  ["qTag","qRound","qNumber","qText","qC1","qE1","qC2","qE2","qC3","qE3","qC4","qE4","qC5","qE5"].forEach(id=>document.getElementById(id).value="");
+  ["qRound","qNumber","qText","qC1","qE1","qC2","qE2","qC3","qE3","qC4","qE4","qC5","qE5"].forEach(id=>document.getElementById(id).value="");
   document.querySelectorAll(".qAns:checked").forEach(c=>c.checked=false);
+  populateTagChecks();
 }
 
 window.deleteQuestion = async function(id){
@@ -979,7 +985,7 @@ function renderRegisteredQuestions(){
       <button class="del" style="right:66px;color:var(--navy);" onclick="editQuestion('${id}')">編集</button>
       <button class="del" onclick="deleteQuestion('${id}')">削除</button>
       <div class="s-name">${q.text.slice(0,32)}${q.text.length>32?"…":""}</div>
-      <div class="s-meta">${q.subject} / ${q.tag}${roundLabel}</div>
+      <div class="s-meta">${q.subject} / ${(q.tags || (q.tag?[q.tag]:[])).join("・")}${roundLabel}</div>
     `;
     wrap.appendChild(div);
   });
@@ -1087,9 +1093,11 @@ function renderWeakBySubject(){
     const logs = detailLogsCache.filter(l=>l.subject===sub);
     const byTag = {};
     logs.forEach(l=>{
-      byTag[l.tag] = byTag[l.tag] || {total:0, correct:0};
-      byTag[l.tag].total++;
-      if(l.correct) byTag[l.tag].correct++;
+      (l.tags || (l.tag?[l.tag]:[])).forEach(tag=>{
+        byTag[tag] = byTag[tag] || {total:0, correct:0};
+        byTag[tag].total++;
+        if(l.correct) byTag[tag].correct++;
+      });
     });
     const weak = Object.keys(byTag).filter(tag=> (byTag[tag].correct/byTag[tag].total) < 0.5);
     const safeId = "w_" + sub.replace(/[^a-zA-Z0-9ぁ-んァ-ヶ一-龠]/g,"_");
@@ -1119,7 +1127,7 @@ function renderHistoryByDate(){
     const correct = logs.filter(l=>l.correct).length;
     const safeId = "h_" + date.replace(/[^0-9]/g,"_");
     const inner = `<table><tr><th>科目/分野</th><th>結果</th></tr>` +
-      logs.map(l=>`<tr><td>${l.subject}<br><span style="color:#999">${l.tag}</span></td><td style="color:${l.correct?'var(--correct)':'var(--wrong)'}">${l.correct?'正解':'不正解'}</td></tr>`).join("") +
+      logs.map(l=>`<tr><td>${l.subject}<br><span style="color:#999">${(l.tags || (l.tag?[l.tag]:[])).join("・")}</span></td><td style="color:${l.correct?'var(--correct)':'var(--wrong)'}">${l.correct?'正解':'不正解'}</td></tr>`).join("") +
       `</table>`;
     return `
       <div class="subject-item" style="cursor:pointer;" onclick="toggleAccordion('${safeId}')">
@@ -1145,7 +1153,7 @@ window.exportCsv = function(){
     .sort((a,b)=>(a.timestamp||0)-(b.timestamp||0))
     .forEach(a=>{
       const s = ALL_STUDENTS[a.studentId] || {last:"", first:""};
-      rows.push([a.studentId, s.last, s.first, a.subject, a.tag, a.date, a.correct? "正解":"不正解"]);
+      rows.push([a.studentId, s.last, s.first, a.subject, (a.tags || (a.tag?[a.tag]:[])).join("・"), a.date, a.correct? "正解":"不正解"]);
     });
   const csv = rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\r\n");
   const blob = new Blob(["\uFEFF"+csv], {type:"text/csv;charset=utf-8;"});
