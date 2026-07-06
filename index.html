@@ -287,6 +287,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import {
   getDatabase, ref, get, set, push, update, remove, child
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+import {
+  getAuth, signInAnonymously
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 /* ★★★ ここをFirebaseコンソールで作成したプロジェクトの値に置き換えてください ★★★ */
 const firebaseConfig = {
@@ -303,6 +306,7 @@ const TEACHER_PIN = "1234"; // ★ 必要に応じて変更してください
 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
+const auth = getAuth(app);
 
 document.getElementById("topbarSub").textContent = "";
 
@@ -1167,12 +1171,13 @@ window.exportCsv = function(){
 /* ===================== 起動 ===================== */
 (async function init(){
   try{
+    await signInAnonymously(auth);
     await loadAll();
     document.getElementById("topbarSub").textContent = "";
   }catch(e){
     document.getElementById("topbarSub").textContent = "接続エラー";
     console.error(e);
-    alert("Firebaseへの接続に失敗しました。firebaseConfigの設定値を確認してください。");
+    alert("Firebaseへの接続に失敗しました。Authenticationで「匿名」サインインが有効になっているか、firebaseConfigの設定値を確認してください。");
   }
 })();
 </script>
