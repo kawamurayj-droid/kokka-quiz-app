@@ -131,6 +131,14 @@
         <div><label>姓</label><input type="text" id="stuLast" placeholder="例: 大分"></div>
         <div><label>名</label><input type="text" id="stuFirst" placeholder="例: 太郎"></div>
       </div>
+      <label>学年</label>
+      <select id="stuGrade">
+        <option value="1年">1年</option>
+        <option value="2年">2年</option>
+        <option value="3年">3年</option>
+        <option value="4年">4年</option>
+        <option value="その他">その他</option>
+      </select>
       <p class="note" id="autofillNote"></p>
       <button class="primary" onclick="studentLogin()">ログインして科目を選ぶ</button>
       <button class="ghost" onclick="loginAsDemo()">動作確認用のデモ学生でログイン(学生の進捗には表示されません)</button>
@@ -139,6 +147,7 @@
     <section class="screen" id="screen-mode-select">
       <span class="backlink" onclick="showScreen('screen-student-login')">← 戻る</span>
       <h2 class="section-title"><span id="stuGreeting"></span>さん・学習方法を選択</h2>
+      <div id="streakBadge" style="display:none;background:#fbf5e9;border:1px solid var(--gold);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:14px;color:var(--gold);font-weight:700;"></div>
       <div class="role-cards">
         <div class="role-card" onclick="openExamSetup()">
           <h3>模擬試験モード</h3>
@@ -148,7 +157,27 @@
           <h3>科目別モード</h3>
           <p>科目を選んで、その科目の過去問からランダムに出題されます。問題数も選べます。</p>
         </div>
+        <div class="role-card" onclick="startReviewMode()">
+          <h3>復習モード</h3>
+          <p>これまで間違えたままの問題だけをまとめて解き直します。</p>
+        </div>
+        <div class="role-card" onclick="startFavoriteMode()">
+          <h3>お気に入り問題</h3>
+          <p>解いているときに★をつけた問題だけを解き直します。</p>
+        </div>
+        <div class="role-card" onclick="showMyProgress()">
+          <h3>学習記録を見る</h3>
+          <p>連続学習日数や、最近の正答率の推移を確認できます。</p>
+        </div>
       </div>
+    </section>
+
+    <section class="screen" id="screen-my-progress">
+      <span class="backlink" onclick="showScreen('screen-mode-select')">← 戻る</span>
+      <h2 class="section-title">学習記録</h2>
+      <div id="myProgressStreak" style="margin-bottom:18px;"></div>
+      <h3 style="font-size:13px;color:var(--navy);">直近の正答率(日別)</h3>
+      <div id="myProgressChart" style="margin-top:10px;"></div>
     </section>
 
     <section class="screen" id="screen-subject-select">
@@ -175,7 +204,14 @@
     <section class="screen" id="screen-quiz">
       <span class="backlink" onclick="quizBackToSelect()">← 選択に戻る</span>
       <div class="progressbar"><div id="quizProgressBar" style="width:0%"></div></div>
-      <div class="qmeta"><span id="quizCounter"></span><span style="display:flex;gap:6px;"><span class="qtag" id="quizRoundBadge" style="display:none;background:#f3ede0;color:var(--gold);"></span><span class="qtag" id="quizTag"></span></span></div>
+      <div class="qmeta">
+        <span id="quizCounter"></span>
+        <span style="display:flex;gap:6px;align-items:center;">
+          <span class="qtag" id="quizRoundBadge" style="display:none;background:#f3ede0;color:var(--gold);"></span>
+          <span class="qtag" id="quizTag"></span>
+          <button type="button" id="favBtn" onclick="toggleFavorite()" style="border:none;background:none;font-size:20px;cursor:pointer;color:#ccc;line-height:1;padding:0;">☆</button>
+        </span>
+      </div>
       <div class="qtext" id="quizText"></div>
       <div id="choicesWrap"></div>
       <button class="secondary" id="confirmAnswerBtn" style="display:none" onclick="confirmMultiAnswer()" disabled>回答を確定する</button>
@@ -263,6 +299,15 @@
 
       <div id="teacherTabS" style="display:none">
         <h2 class="section-title">学生一覧</h2>
+        <label>学年で絞り込み</label>
+        <select id="studentFilterGrade" onchange="renderStudentList()">
+          <option value="">すべての学年</option>
+          <option value="1年">1年</option>
+          <option value="2年">2年</option>
+          <option value="3年">3年</option>
+          <option value="4年">4年</option>
+          <option value="その他">その他</option>
+        </select>
         <button class="secondary" onclick="exportCsv()">CSVで一覧をダウンロード</button>
         <div id="studentListWrap" style="margin-top:14px;"><div class="loading">読み込み中...</div></div>
       </div>
@@ -460,6 +505,7 @@ let ALL_STUDENTS = {};    // studentId -> {last, first}
 let ALL_ANSWERS = {};     // id -> {studentId, subject, tag, correct, date}
 let QUIZ_LENGTHS = {};    // subject -> number
 let SUBJECT_TAGS = {};    // subject -> [tag, tag, ...]
+let MY_FAVORITES = {};    // questionId -> true (現在ログイン中の学生のみ)
 let currentStudent = null;
 let currentDetailStudentId = null;
 let quizQueue = [];
@@ -532,6 +578,132 @@ function questionsOfRound(round){
     .sort((a,b)=> numberSortKey(a) - numberSortKey(b));
 }
 
+/* ===================== お気に入り・連続学習日数・学習記録 ===================== */
+async function refreshStreakAndFavorites(){
+  if(!currentStudent) return;
+  const favSnap = await get(ref(db, "favorites/"+currentStudent.id));
+  MY_FAVORITES = favSnap.exists() ? favSnap.val() : {};
+  renderStreakBadge();
+}
+
+function computeStreak(studentId){
+  const dates = [...new Set(answersOfStudent(studentId).map(a=>a.date))].sort((a,b)=>b.localeCompare(a));
+  if(dates.length===0) return 0;
+  const oneDay = 24*60*60*1000;
+  let streak = 0;
+  let cursor = new Date(todayStr()+"T00:00:00");
+  // 今日まだ解いていない場合は「昨日まで」からの連続日数として数える
+  if(dates[0] !== todayStr()) cursor = new Date(dates[0]+"T00:00:00");
+  for(let i=0;i<dates.length;i++){
+    const expected = cursor.toISOString().slice(0,10);
+    if(dates[i] === expected){
+      streak++;
+      cursor = new Date(cursor.getTime() - oneDay);
+    } else {
+      break;
+    }
+  }
+  return streak;
+}
+
+function renderStreakBadge(){
+  if(!currentStudent) return;
+  const streak = computeStreak(currentStudent.id);
+  const badge = document.getElementById("streakBadge");
+  if(streak > 0){
+    badge.style.display = "block";
+    badge.textContent = `🔥 ${streak}日連続で学習しています`;
+  } else {
+    badge.style.display = "none";
+  }
+}
+
+window.showMyProgress = function(){
+  const streak = computeStreak(currentStudent.id);
+  document.getElementById("myProgressStreak").innerHTML =
+    `<div class="feedback ok" style="display:inline-block;">🔥 現在 ${streak}日連続で学習中</div>`;
+
+  const logs = answersOfStudent(currentStudent.id);
+  const byDate = {};
+  logs.forEach(l=>{
+    byDate[l.date] = byDate[l.date] || {total:0, correct:0};
+    byDate[l.date].total++;
+    if(l.correct) byDate[l.date].correct++;
+  });
+  const days = Object.keys(byDate).sort().slice(-14); // 直近14日分(記録がある日のみ)
+  const wrap = document.getElementById("myProgressChart");
+  if(days.length===0){
+    wrap.innerHTML = `<p class="center-note">まだ学習記録がありません。</p>`;
+  } else {
+    wrap.innerHTML = `<div style="display:flex;align-items:flex-end;gap:6px;height:140px;border-bottom:1px solid var(--line);padding-bottom:4px;">` +
+      days.map(d=>{
+        const t = byDate[d];
+        const rate = Math.round(t.correct/t.total*100);
+        return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;">
+          <div style="font-size:10px;color:#888;margin-bottom:2px;">${rate}%</div>
+          <div style="width:100%;background:var(--gold);border-radius:3px 3px 0 0;height:${Math.max(rate,4)}%;"></div>
+        </div>`;
+      }).join("") + `</div>` +
+      `<div style="display:flex;gap:6px;margin-top:4px;">` +
+      days.map(d=>`<div style="flex:1;text-align:center;font-size:10px;color:#888;">${d.slice(5)}</div>`).join("") +
+      `</div>`;
+  }
+  showScreen("screen-my-progress");
+}
+
+window.toggleFavorite = async function(){
+  const q = quizQueue[quizIndex];
+  if(!q || !q.id || !currentStudent) return;
+  const isFav = !!MY_FAVORITES[q.id];
+  const btn = document.getElementById("favBtn");
+  if(isFav){
+    delete MY_FAVORITES[q.id];
+    await remove(ref(db, "favorites/"+currentStudent.id+"/"+q.id));
+    btn.textContent = "☆"; btn.style.color = "#ccc";
+  } else {
+    MY_FAVORITES[q.id] = true;
+    await set(ref(db, "favorites/"+currentStudent.id+"/"+q.id), true);
+    btn.textContent = "★"; btn.style.color = "var(--gold)";
+  }
+}
+
+window.startReviewMode = function(){
+  const logs = answersOfStudent(currentStudent.id).filter(l=>l.questionId);
+  const latestByQuestion = {};
+  logs.forEach(l=>{
+    if(!latestByQuestion[l.questionId] || (l.timestamp||0) > (latestByQuestion[l.questionId].timestamp||0)){
+      latestByQuestion[l.questionId] = l;
+    }
+  });
+  const wrongIds = Object.keys(latestByQuestion).filter(qid=> !latestByQuestion[qid].correct);
+  const pool = wrongIds.map(qid=> ALL_QUESTIONS[qid] ? {id:qid, ...ALL_QUESTIONS[qid]} : null).filter(Boolean);
+  if(pool.length===0){
+    alert("直しが必要な問題が見つかりませんでした(まだ何も間違えていないか、間違えた問題がすでに解き直されています)。");
+    return;
+  }
+  quizQueue = shuffle(pool);
+  quizMode = "review";
+  quizIndex = 0;
+  quizResults = [];
+  showScreen("screen-quiz");
+  renderQuestion();
+}
+
+window.startFavoriteMode = function(){
+  const ids = Object.keys(MY_FAVORITES);
+  const pool = ids.map(qid=> ALL_QUESTIONS[qid] ? {id:qid, ...ALL_QUESTIONS[qid]} : null).filter(Boolean);
+  if(pool.length===0){
+    alert("お気に入りに登録された問題がまだありません。問題を解いているときに☆をタップすると登録できます。");
+    return;
+  }
+  quizQueue = shuffle(pool);
+  quizMode = "favorite";
+  quizIndex = 0;
+  quizResults = [];
+  showScreen("screen-quiz");
+  renderQuestion();
+}
+
 /* ===================== 学生ログイン ===================== */
 window.tryAutofill = function(){
   const id = document.getElementById("stuId").value.trim();
@@ -539,6 +711,7 @@ window.tryAutofill = function(){
   if(ALL_STUDENTS[id]){
     document.getElementById("stuLast").value = ALL_STUDENTS[id].last;
     document.getElementById("stuFirst").value = ALL_STUDENTS[id].first;
+    if(ALL_STUDENTS[id].grade) document.getElementById("stuGrade").value = ALL_STUDENTS[id].grade;
     note.textContent = "登録済みの学籍番号です。氏名を自動入力しました。";
   } else {
     note.textContent = "";
@@ -549,12 +722,14 @@ window.studentLogin = async function(){
   const id = document.getElementById("stuId").value.trim();
   const last = document.getElementById("stuLast").value.trim();
   const first = document.getElementById("stuFirst").value.trim();
+  const grade = document.getElementById("stuGrade").value;
   if(!id || !last || !first){ alert("学籍番号・姓・名をすべて入力してください。"); return; }
-  await set(ref(db, "students/"+id), {last, first});
-  ALL_STUDENTS[id] = {last, first};
-  currentStudent = {id, last, first};
+  await set(ref(db, "students/"+id), {last, first, grade});
+  ALL_STUDENTS[id] = {last, first, grade};
+  currentStudent = {id, last, first, grade};
   document.getElementById("stuGreeting").textContent = last + " " + first;
   renderSubjectList();
+  await refreshStreakAndFavorites();
   showScreen("screen-mode-select");
 }
 
@@ -675,7 +850,9 @@ let currentExamRound = null;
 let currentExamSessionId = null;
 
 window.quizBackToSelect = function(){
-  showScreen(quizMode === "exam" ? "screen-exam-setup" : "screen-subject-select");
+  if(quizMode === "exam") showScreen("screen-exam-setup");
+  else if(quizMode === "review" || quizMode === "favorite") showScreen("screen-mode-select");
+  else showScreen("screen-subject-select");
 }
 
 window.startQuiz = function(subject, count){
@@ -690,6 +867,7 @@ window.startQuiz = function(subject, count){
 }
 
 let selectedChoices = [];
+let currentChoiceOrder = []; // 表示位置(0始まり) -> 元の選択肢インデックス(0始まり)
 
 function renderQuestion(){
   const q = quizQueue[quizIndex];
@@ -706,13 +884,19 @@ function renderQuestion(){
   }
   document.getElementById("quizText").textContent = q.text + (answers.length>1 ? `(${answers.length}つ選んでください)` : "");
   document.getElementById("quizProgressBar").style.width = Math.round((quizIndex)/quizQueue.length*100)+"%";
+  const favBtn = document.getElementById("favBtn");
+  if(q.id && MY_FAVORITES[q.id]){ favBtn.textContent = "★"; favBtn.style.color = "var(--gold)"; }
+  else { favBtn.textContent = "☆"; favBtn.style.color = "#ccc"; }
   const wrap = document.getElementById("choicesWrap");
   wrap.innerHTML = "";
-  q.choices.forEach((c,i)=>{
+  currentChoiceOrder = shuffle(q.choices.map((c,i)=>i)); // 選択肢の並びを毎回シャッフル
+  currentChoiceOrder.forEach((origIdx, pos)=>{
+    const c = q.choices[origIdx];
     const div = document.createElement("div");
     div.className = "choice";
-    div.innerHTML = `<div class="num">${i+1}</div><div style="flex:1"><div class="c-text">${c.text}</div><div class="c-explain" style="display:none"></div></div>`;
-    div.onclick = ()=> onChoiceClick(i+1);
+    div.dataset.orig = origIdx + 1;
+    div.innerHTML = `<div class="num">${pos+1}</div><div style="flex:1"><div class="c-text">${c.text}</div><div class="c-explain" style="display:none"></div></div>`;
+    div.onclick = ()=> onChoiceClick(origIdx + 1);
     wrap.appendChild(div);
   });
   document.getElementById("feedbackWrap").innerHTML = "";
@@ -732,7 +916,7 @@ function onChoiceClick(choiceNum){
   const answers = q.answers || (q.answer ? [q.answer] : []);
   if(answers.length > 1){
     // 複数選択モード:トグルして確定ボタンを押すまで採点しない
-    const div = document.querySelectorAll("#choicesWrap .choice")[choiceNum-1];
+    const div = document.querySelector(`#choicesWrap .choice[data-orig="${choiceNum}"]`);
     const idx = selectedChoices.indexOf(choiceNum);
     if(idx === -1){ selectedChoices.push(choiceNum); div.classList.add("selected-multi"); }
     else { selectedChoices.splice(idx,1); div.classList.remove("selected-multi"); }
@@ -754,27 +938,30 @@ async function finalizeAnswer(chosenArr){
   const correct = JSON.stringify(chosen) === JSON.stringify(answers);
 
   const choiceDivs = document.querySelectorAll("#choicesWrap .choice");
-  choiceDivs.forEach((div,i)=>{
+  choiceDivs.forEach(div=>{
+    const origNum = parseInt(div.dataset.orig);
     div.onclick = null;
     div.classList.remove("selected-multi");
-    const isCorrectChoice = answers.includes(i+1);
-    const wasChosen = chosen.includes(i+1);
+    const isCorrectChoice = answers.includes(origNum);
+    const wasChosen = chosen.includes(origNum);
     if(isCorrectChoice) div.classList.add("correct");
     if(wasChosen && !isCorrectChoice) div.classList.add("wrong");
     const exp = div.querySelector(".c-explain");
-    if(q.choices[i].explain){
+    if(q.choices[origNum-1].explain){
       exp.style.display = "block";
-      exp.textContent = (isCorrectChoice ? "○ " : "✕ ") + q.choices[i].explain;
+      exp.textContent = (isCorrectChoice ? "○ " : "✕ ") + q.choices[origNum-1].explain;
     }
   });
   document.getElementById("confirmAnswerBtn").style.display = "none";
+  // 正解番号は、今回表示されている位置の番号に変換してから伝える
+  const answersDisplayPos = answers.map(a=> currentChoiceOrder.indexOf(a-1)+1).sort((a,b)=>a-b);
   document.getElementById("feedbackWrap").innerHTML =
-    `<div class="feedback ${correct?'ok':'ng'}">${correct? "正解です。" : "不正解です。正解は "+answers.join("、")+" です。"}</div>`;
+    `<div class="feedback ${correct?'ok':'ng'}">${correct? "正解です。" : "不正解です。正解は "+answersDisplayPos.join("、")+" です。"}</div>`;
   document.getElementById("nextBtn").style.display = "block";
   const qTags = q.tags || (q.tag ? [q.tag] : []);
   quizResults.push({subject:q.subject, tags:qTags, correct});
 
-  const record = {studentId:currentStudent.id, subject:q.subject, tags:qTags, correct, date:todayStr(), timestamp:Date.now(), mode:quizMode};
+  const record = {studentId:currentStudent.id, questionId:q.id, subject:q.subject, tags:qTags, correct, date:todayStr(), timestamp:Date.now(), mode:quizMode};
   if(quizMode === "exam"){
     record.examRound = currentExamRound;
     record.examSessionId = currentExamSessionId;
@@ -1022,7 +1209,10 @@ window.renderRegisteredQuestions = renderRegisteredQuestions;
 /* ===================== 教員: 学生進捗 ===================== */
 function renderStudentList(){
   const wrap = document.getElementById("studentListWrap");
-  const ids = Object.keys(ALL_STUDENTS).filter(id=> id !== DEMO_STUDENT_ID);
+  const gradeFilter = document.getElementById("studentFilterGrade").value;
+  const ids = Object.keys(ALL_STUDENTS)
+    .filter(id=> id !== DEMO_STUDENT_ID)
+    .filter(id=> !gradeFilter || ALL_STUDENTS[id].grade === gradeFilter);
   wrap.innerHTML = "";
   if(ids.length === 0){
     wrap.innerHTML = `<p class="center-note">まだ回答した学生がいません。</p>`;
@@ -1038,7 +1228,7 @@ function renderStudentList(){
     div.style.position = "relative";
     div.onclick = ()=> showStudentDetail(id);
     div.innerHTML = `
-      <div><div class="name">${s.last} ${s.first}</div><div class="id">学籍番号: ${id}</div></div>
+      <div><div class="name">${s.last} ${s.first}${s.grade? ` <span style="color:#999;font-weight:400;font-size:12px;">(${s.grade})</span>`:""}</div><div class="id">学籍番号: ${id}</div></div>
       <div style="display:flex;align-items:center;gap:10px;">
         <div class="stat">${total>0? `${correct}/${total}問(全体${Math.round(correct/total*100)}%)` : "未回答"}</div>
         <button class="del" style="position:static;" onclick="event.stopPropagation(); deleteStudent('${id}')">削除</button>
@@ -1047,6 +1237,7 @@ function renderStudentList(){
     wrap.appendChild(div);
   });
 }
+window.renderStudentList = renderStudentList;
 
 window.deleteStudent = async function(id){
   const s = ALL_STUDENTS[id];
@@ -1086,7 +1277,7 @@ let detailLogsCache = [];
 function showStudentDetail(id){
   currentDetailStudentId = id;
   const s = ALL_STUDENTS[id];
-  document.getElementById("detailStuName").textContent = `${s.last} ${s.first}(${id})`;
+  document.getElementById("detailStuName").textContent = `${s.last} ${s.first}${s.grade? "("+s.grade+")":""}(${id})`;
   const logs = answersOfStudent(id);
   detailLogsCache = logs;
 
@@ -1224,13 +1415,13 @@ window.showStudentDetail = showStudentDetail;
 
 /* ===================== CSV出力 ===================== */
 window.exportCsv = function(){
-  const rows = [["学籍番号","姓","名","科目","分野タグ","日付","結果"]];
+  const rows = [["学籍番号","姓","名","学年","科目","分野タグ","日付","結果"]];
   Object.values(ALL_ANSWERS)
     .filter(a=> a.studentId !== DEMO_STUDENT_ID)
     .sort((a,b)=>(a.timestamp||0)-(b.timestamp||0))
     .forEach(a=>{
-      const s = ALL_STUDENTS[a.studentId] || {last:"", first:""};
-      rows.push([a.studentId, s.last, s.first, a.subject, (a.tags || (a.tag?[a.tag]:[])).join("・"), a.date, a.correct? "正解":"不正解"]);
+      const s = ALL_STUDENTS[a.studentId] || {last:"", first:"", grade:""};
+      rows.push([a.studentId, s.last, s.first, s.grade||"", a.subject, (a.tags || (a.tag?[a.tag]:[])).join("・"), a.date, a.correct? "正解":"不正解"]);
     });
   const csv = rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\r\n");
   const blob = new Blob(["\uFEFF"+csv], {type:"text/csv;charset=utf-8;"});
