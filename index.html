@@ -212,6 +212,12 @@
 
       <div id="teacherTabQ">
         <h2 class="section-title">過去問を追加</h2>
+        <div class="tabbar" style="margin-bottom:16px;">
+          <button class="active" id="subTabBtnSingle" onclick="switchAddMode('single')">1問ずつ入力</button>
+          <button id="subTabBtnBulk" onclick="switchAddMode('bulk')">まとめて貼り付け</button>
+        </div>
+
+        <div id="addModeSingle">
         <label>科目</label>
         <select id="qSubject"></select>
         <label>この科目の出題数(ランダムに何問出題するか)</label>
@@ -251,6 +257,29 @@
         <p class="note" id="editingNotice" style="display:none;color:var(--gold);font-weight:700;">この過去問を編集中です。内容を直して「この内容で更新する」を押してください。</p>
         <button class="primary" id="addQBtn" onclick="addQuestion()">この過去問を登録する</button>
         <button class="ghost" id="cancelEditBtn" style="display:none;" onclick="cancelEdit()">編集をやめて新規登録に戻る</button>
+        </div>
+
+        <div id="addModeBulk" style="display:none;">
+          <p class="note" style="margin-top:0;">
+            決まった書式でまとめて貼り付けると、複数問を一度に登録できます。1問ごとに <code>===</code> だけの行で区切ってください。<br>
+            書式: <code>SUBJECT:</code> 科目名(SUBJECTSのいずれかと完全一致) / <code>TAG:</code> 分野タグ(複数はカンマ区切り、新規タグも自動追加されます) / <code>ROUND:</code> 実施回(任意) / <code>NUM:</code> 問題番号(任意) / <code>Q:</code> 問題文 / <code>1:</code>〜<code>5:</code> 選択肢 / <code>E1:</code>〜<code>E5:</code> 各選択肢の解説(任意) / <code>A:</code> 正解番号(複数はカンマ区切り)
+          </p>
+          <button type="button" class="ghost" onclick="insertBulkExample()">書式の例を入力欄に入れる</button>
+          <textarea id="bulkInput" style="min-height:260px;font-family:monospace;font-size:13px;margin-top:8px;" placeholder="SUBJECT: 高齢者福祉
+TAG: 介護保険制度
+ROUND: 第37回
+NUM: 問85
+Q: 問題文をここに入力
+1: 選択肢1
+2: 選択肢2
+3: 選択肢3
+4: 選択肢4
+5: 選択肢5
+A: 2
+==="></textarea>
+          <button class="secondary" style="margin-top:10px;" onclick="previewBulkImport()">内容を確認する</button>
+          <div id="bulkPreview" style="margin-top:14px;"></div>
+        </div>
 
         <h2 class="section-title" style="margin-top:28px;">登録済みの過去問<span id="qCountLabel"></span></h2>
         <div class="row2">
@@ -878,6 +907,141 @@ window.switchTeacherTab = function(tab){
 
 /* ===================== 教員: 過去問登録・編集 ===================== */
 let editingId = null;
+
+/* ===================== 一括貼り付け ===================== */
+window.switchAddMode = function(mode){
+  document.getElementById("addModeSingle").style.display = mode==='single' ? 'block':'none';
+  document.getElementById("addModeBulk").style.display = mode==='bulk' ? 'block':'none';
+  document.getElementById("subTabBtnSingle").classList.toggle("active", mode==='single');
+  document.getElementById("subTabBtnBulk").classList.toggle("active", mode==='bulk');
+}
+
+window.insertBulkExample = function(){
+  document.getElementById("bulkInput").value =
+`SUBJECT: 高齢者福祉
+TAG: 介護保険制度
+ROUND: 第37回
+NUM: 問85
+Q: 介護保険制度における要介護認定の一次判定を行う機関として、正しいものを1つ選びなさい。
+1: 市町村
+E1: 一次判定はコンピュータ判定として市町村が行います。
+2: 都道府県
+E2: 都道府県は一次判定の主体ではありません。
+3: 介護認定審査会
+E3: 介護認定審査会が行うのは二次判定です。
+4: 国民健康保険団体連合会
+E4: 国保連合会は介護報酬の審査・支払等を担います。
+5: 厚生労働省
+E5: 国は制度の枠組みを定めますが、一次判定の実施主体ではありません。
+A: 1
+===
+SUBJECT: 高齢者福祉
+TAG: 老人福祉法
+ROUND: 第37回
+NUM: 問86
+Q: 2問目の問題文をここに入力
+1: 選択肢1
+2: 選択肢2
+3: 選択肢3
+4: 選択肢4
+5: 選択肢5
+A: 3`;
+}
+
+function parseBulkInput(text){
+  const blocks = text.split(/\n===\s*\n?/).map(b=>b.trim()).filter(Boolean);
+  const results = [];
+  blocks.forEach((block, idx)=>{
+    const lines = block.split("\n");
+    const fields = {};
+    let currentKey = null;
+    lines.forEach(line=>{
+      const m = line.match(/^(SUBJECT|TAG|ROUND|NUM|Q|A|E?[1-5]):\s*(.*)$/i);
+      if(m){
+        currentKey = m[1].toUpperCase();
+        fields[currentKey] = m[2];
+      } else if(currentKey){
+        fields[currentKey] += "\n" + line;
+      }
+    });
+    const errors = [];
+    const subject = (fields.SUBJECT||"").trim();
+    if(!SUBJECTS.includes(subject)) errors.push(`科目「${subject}」がSUBJECTSと一致しません`);
+    const tags = (fields.TAG||"").split(",").map(t=>t.trim()).filter(Boolean);
+    if(tags.length===0) errors.push("TAGが未入力です");
+    const text_ = (fields.Q||"").trim();
+    if(!text_) errors.push("Q(問題文)が未入力です");
+    const choices = [1,2,3,4,5].map(n=>({
+      text:(fields[String(n)]||"").trim(),
+      explain:(fields["E"+n]||"").trim()
+    }));
+    if(choices.some(c=>!c.text)) errors.push("選択肢1〜5がすべて必要です");
+    const answers = (fields.A||"").split(",").map(a=>parseInt(a.trim())).filter(n=>!isNaN(n));
+    if(answers.length===0) errors.push("A(正解)が未入力です");
+
+    results.push({
+      index: idx+1, subject, tags, round:(fields.ROUND||"").trim(), number:(fields.NUM||"").trim(),
+      text:text_, choices, answers, errors
+    });
+  });
+  return results;
+}
+
+let bulkParsedCache = [];
+
+window.previewBulkImport = function(){
+  const raw = document.getElementById("bulkInput").value;
+  const parsed = parseBulkInput(raw);
+  bulkParsedCache = parsed;
+  const wrap = document.getElementById("bulkPreview");
+  if(parsed.length===0){
+    wrap.innerHTML = `<p class="center-note">解析できる問題が見つかりませんでした。</p>`;
+    return;
+  }
+  const errorCount = parsed.filter(p=>p.errors.length>0).length;
+  let html = `<p class="note" style="margin-top:0;">${parsed.length}問を検出(うちエラー${errorCount}件)</p>`;
+  html += parsed.map(p=>{
+    const color = p.errors.length>0 ? "var(--wrong)" : "var(--correct)";
+    return `<div class="qcard" style="position:static;">
+      <div class="s-name" style="color:${color}">問${p.index}: ${p.text.slice(0,30)||"(問題文なし)"}${p.text.length>30?"…":""}</div>
+      <div class="s-meta">${p.subject||"(科目未設定)"} / ${p.tags.join("・")||"(タグ未設定)"} ${[p.round,p.number].filter(Boolean).join(" ")}</div>
+      ${p.errors.length>0 ? `<div class="s-meta" style="color:var(--wrong)">${p.errors.join("、")}</div>` : ""}
+    </div>`;
+  }).join("");
+  if(errorCount===0){
+    html += `<button class="primary" onclick="confirmBulkImport()">この${parsed.length}問を登録する</button>`;
+  } else {
+    html += `<p class="note" style="color:var(--wrong)">エラーのある問題があるため、修正してからもう一度「内容を確認する」を押してください。</p>`;
+  }
+  wrap.innerHTML = html;
+}
+
+window.confirmBulkImport = async function(){
+  const valid = bulkParsedCache.filter(p=>p.errors.length===0);
+  if(valid.length===0) return;
+  if(!confirm(`${valid.length}問を登録します。よろしいですか？`)) return;
+
+  for(const p of valid){
+    if(!SUBJECT_TAGS[p.subject]) SUBJECT_TAGS[p.subject] = [];
+    let tagsChanged = false;
+    p.tags.forEach(t=>{
+      if(!SUBJECT_TAGS[p.subject].includes(t)){ SUBJECT_TAGS[p.subject].push(t); tagsChanged = true; }
+    });
+    if(tagsChanged) await set(ref(db, "subjectTags/"+p.subject), SUBJECT_TAGS[p.subject]);
+
+    const record = {
+      subject: p.subject, tags: p.tags, round: p.round, number: p.number,
+      text: p.text, choices: p.choices, answers: p.answers.sort((a,b)=>a-b), createdAt: Date.now()
+    };
+    const newRef = push(ref(db, "questions"));
+    await set(newRef, record);
+    ALL_QUESTIONS[newRef.key] = record;
+  }
+
+  document.getElementById("bulkInput").value = "";
+  document.getElementById("bulkPreview").innerHTML = `<p class="note" style="color:var(--correct);">${valid.length}問を登録しました。</p>`;
+  renderRegisteredQuestions();
+}
 
 window.addQuestion = async function(){
   const btn = document.getElementById("addQBtn");
