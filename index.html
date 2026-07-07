@@ -1108,10 +1108,64 @@ function populateTagChecks(checkedTags){
   const subject = document.getElementById("qSubject").value;
   const tags = tagsOf(subject);
   const wrap = document.getElementById("qTagChecks");
-  wrap.innerHTML = tags.map(t=>{
+  wrap.innerHTML = tags.map((t,idx)=>{
     const isChecked = checkedTags.includes(t);
-    return `<label class="tag-check ${isChecked?'checked':''}"><input type="checkbox" class="qTagChk" value="${t}" ${isChecked?'checked':''} onchange="this.parentElement.classList.toggle('checked', this.checked)">${t}</label>`;
+    return `<span class="tag-check ${isChecked?'checked':''}" style="padding-right:4px;">
+      <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;">
+        <input type="checkbox" class="qTagChk" value="${t}" ${isChecked?'checked':''} onchange="this.closest('.tag-check').classList.toggle('checked', this.checked)">${t}
+      </label>
+      <button type="button" onclick="event.stopPropagation(); renameTagAt(${idx})" style="border:none;background:none;cursor:pointer;color:#999;font-size:12px;padding:0 2px;" title="タグ名を修正する">✎</button>
+      <button type="button" onclick="event.stopPropagation(); deleteTagAt(${idx})" style="border:none;background:none;cursor:pointer;color:#999;font-size:12px;padding:0 2px;" title="このタグを一覧から削除する">×</button>
+    </span>`;
   }).join("");
+}
+
+window.renameTagAt = async function(idx){
+  const subject = document.getElementById("qSubject").value;
+  const tags = tagsOf(subject);
+  const oldTag = tags[idx];
+  const newTag = prompt("修正後のタグ名を入力してください。", oldTag);
+  if(newTag===null) return; // キャンセル
+  const trimmed = newTag.trim();
+  if(!trimmed || trimmed === oldTag) return;
+
+  const currentlyChecked = Array.from(document.querySelectorAll(".qTagChk:checked")).map(c=>c.value);
+
+  // タグ一覧を更新(同名が既にある場合は重複を作らず統合する)
+  let list = SUBJECT_TAGS[subject] || [];
+  if(list.includes(trimmed)){
+    list = list.filter(t=>t!==oldTag);
+  } else {
+    list = list.map(t=> t===oldTag ? trimmed : t);
+  }
+  SUBJECT_TAGS[subject] = list;
+  await set(ref(db, "subjectTags/"+subject), list);
+
+  // この科目で、このタグを使っている過去問すべてに反映する
+  const updates = [];
+  Object.entries(ALL_QUESTIONS).forEach(([id,q])=>{
+    if(q.subject===subject && Array.isArray(q.tags) && q.tags.includes(oldTag)){
+      const newTags = [...new Set(q.tags.map(t=> t===oldTag ? trimmed : t))];
+      updates.push(set(ref(db, "questions/"+id+"/tags"), newTags).then(()=>{ q.tags = newTags; }));
+    }
+  });
+  if(updates.length>0) await Promise.all(updates);
+
+  const newChecked = currentlyChecked.map(t=> t===oldTag ? trimmed : t);
+  populateTagChecks(newChecked);
+  renderRegisteredQuestions();
+  alert(`「${oldTag}」を「${trimmed}」に修正しました。${updates.length>0? `(この科目の過去問${updates.length}件にも反映しました)`:""}`);
+}
+
+window.deleteTagAt = async function(idx){
+  const subject = document.getElementById("qSubject").value;
+  const tags = tagsOf(subject);
+  const tag = tags[idx];
+  if(!confirm(`「${tag}」をタグ一覧から削除しますか？(すでにこのタグが付いている過去問からは削除されません。一覧から選べなくなるだけです)`)) return;
+  const currentlyChecked = Array.from(document.querySelectorAll(".qTagChk:checked")).map(c=>c.value).filter(t=>t!==tag);
+  SUBJECT_TAGS[subject] = (SUBJECT_TAGS[subject]||[]).filter(t=>t!==tag);
+  await set(ref(db, "subjectTags/"+subject), SUBJECT_TAGS[subject]);
+  populateTagChecks(currentlyChecked);
 }
 
 window.confirmNewTag = async function(){
