@@ -618,12 +618,44 @@ function renderStreakBadge(){
   }
 }
 
+const STREAK_BADGES = [
+  {days:3, icon:"🔥", label:"3日連続"},
+  {days:7, icon:"🔥", label:"7日連続"},
+  {days:14, icon:"⭐", label:"14日連続"},
+  {days:30, icon:"🏆", label:"30日連続"},
+];
+const COUNT_BADGES = [
+  {count:50, icon:"📘", label:"50問達成"},
+  {count:100, icon:"📗", label:"100問達成"},
+  {count:300, icon:"📙", label:"300問達成"},
+  {count:500, icon:"📕", label:"500問達成"},
+  {count:1000, icon:"🎓", label:"1000問達成"},
+];
+
+function renderBadgeGrid(current, badges, unitLabel){
+  return `<div style="display:flex;flex-wrap:wrap;gap:10px;">` + badges.map(b=>{
+    const threshold = b.days!==undefined ? b.days : b.count;
+    const unlocked = current >= threshold;
+    return `<div style="width:96px;text-align:center;padding:10px 6px;border-radius:10px;border:1px solid ${unlocked?'var(--gold)':'var(--line)'};background:${unlocked?'#fbf5e9':'#f7f7f5'};opacity:${unlocked?'1':'0.55'};">
+      <div style="font-size:26px;">${b.icon}</div>
+      <div style="font-size:11px;margin-top:4px;color:${unlocked?'var(--gold)':'#999'};font-weight:${unlocked?'700':'400'};">${b.label}</div>
+      ${!unlocked ? `<div style="font-size:10px;color:#999;margin-top:2px;">あと${threshold-current}${unitLabel}</div>` : ""}
+    </div>`;
+  }).join("") + `</div>`;
+}
+
 window.showMyProgress = function(){
   const streak = computeStreak(currentStudent.id);
-  document.getElementById("myProgressStreak").innerHTML =
-    `<div class="feedback ok" style="display:inline-block;">🔥 現在 ${streak}日連続で学習中</div>`;
-
   const logs = answersOfStudent(currentStudent.id);
+  const totalAnswered = logs.length;
+
+  document.getElementById("myProgressStreak").innerHTML =
+    `<div class="feedback ok" style="display:inline-block;">🔥 現在 ${streak}日連続で学習中・累計 ${totalAnswered}問</div>
+     <h3 style="font-size:13px;color:var(--navy);margin-top:18px;">連続学習日数バッジ</h3>
+     ${renderBadgeGrid(streak, STREAK_BADGES, "日")}
+     <h3 style="font-size:13px;color:var(--navy);margin-top:18px;">解いた問題数バッジ</h3>
+     ${renderBadgeGrid(totalAnswered, COUNT_BADGES, "問")}`;
+
   const byDate = {};
   logs.forEach(l=>{
     byDate[l.date] = byDate[l.date] || {total:0, correct:0};
