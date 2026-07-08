@@ -3,1571 +3,478 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>社会福祉士国家試験対策 過去問アプリ</title>
+<title>学修ピアサポーター制度 意見聴取</title>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <style>
-  :root{
-    --navy:#1c2e4a;
-    --navy-light:#2f4874;
-    --paper:#f6f4ef;
-    --ink:#22262c;
-    --gold:#c9973f;
-    --correct:#2f7a52;
-    --wrong:#b5484a;
-    --line:#dcd6c8;
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+    background: #f4f6f8;
+    margin: 0;
+    padding: 0;
+    color: #222;
   }
-  *{box-sizing:border-box;}
-  body{
-    margin:0;
-    font-family:"Hiragino Sans","Yu Gothic",-apple-system,BlinkMacSystemFont,sans-serif;
-    background:var(--paper);
-    color:var(--ink);
-    min-height:100vh;
+  header {
+    background: #1e4d6b;
+    color: white;
+    padding: 20px;
+    text-align: center;
   }
-  .app{max-width:520px;margin:0 auto;min-height:100vh;background:#fff;box-shadow:0 0 24px rgba(0,0,0,0.06);display:flex;flex-direction:column;}
-  header.topbar{background:var(--navy);color:#fff;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;}
-  header.topbar .brand{font-size:15px;font-weight:700;letter-spacing:.03em;}
-  header.topbar .brand small{display:block;font-weight:400;font-size:11px;opacity:.75;margin-top:2px;}
-  header.topbar button.linklike{background:none;border:1px solid rgba(255,255,255,0.4);color:#fff;padding:6px 12px;border-radius:20px;font-size:12px;cursor:pointer;}
-  main{flex:1;padding:20px;padding-bottom:40px;}
-  .screen{display:none;}
-  .screen.active{display:block;animation:fadein .18s ease;}
-  @keyframes fadein{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:none;}}
-  .role-cards{display:flex;flex-direction:column;gap:14px;margin-top:28px;}
-  .role-card{border:1px solid var(--line);border-radius:12px;padding:20px;text-align:left;background:#fffdf9;cursor:pointer;transition:.15s;}
-  .role-card:hover{border-color:var(--gold);transform:translateY(-1px);}
-  .role-card h3{margin:0 0 4px;color:var(--navy);font-size:17px;}
-  .role-card p{margin:0;font-size:13px;color:#666;line-height:1.5;}
-  h2.section-title{font-size:15px;color:var(--navy);border-left:4px solid var(--gold);padding-left:10px;margin:0 0 16px;}
-  label{display:block;font-size:12px;color:#666;margin:14px 0 4px;}
-  input[type=text],input[type=password],input[type=number],textarea,select{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font-size:15px;font-family:inherit;background:#fff;}
-  textarea{resize:vertical;min-height:64px;}
-  .row2{display:flex;gap:10px;}
-  .row2 > div{flex:1;}
-  button.primary{width:100%;padding:13px;margin-top:20px;background:var(--navy);color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;}
-  button.primary:disabled{opacity:.5;}
-  button.primary:active{background:var(--navy-light);}
-  button.secondary{width:100%;padding:11px;margin-top:10px;background:#fff;color:var(--navy);border:1px solid var(--navy);border-radius:8px;font-size:14px;cursor:pointer;}
-  button.danger{width:100%;padding:11px;margin-top:10px;background:#fff;color:var(--wrong);border:1px solid var(--wrong);border-radius:8px;font-size:13px;cursor:pointer;}
-  button.ghost{background:none;border:none;color:#888;font-size:12px;text-decoration:underline;cursor:pointer;padding:8px 0;}
-  .note{font-size:12px;color:#888;margin-top:10px;line-height:1.5;}
-  .subject-list{display:flex;flex-direction:column;gap:8px;}
-  .subject-item{display:flex;justify-content:space-between;align-items:center;border:1px solid var(--line);border-radius:10px;padding:12px 14px;cursor:pointer;background:#fffdf9;}
-  .subject-item:hover{border-color:var(--gold);}
-  .subject-item .s-name{font-size:14px;font-weight:600;color:var(--ink);}
-  .subject-item .s-meta{font-size:11px;color:#888;margin-top:2px;}
-  .subject-item .s-rate{font-size:16px;font-weight:700;color:var(--navy);}
-  .subject-item .s-rate.weak{color:var(--wrong);}
-  .qmeta{display:flex;justify-content:space-between;font-size:12px;color:#888;margin-bottom:10px;}
-  .qtag{background:#eef1f6;color:var(--navy);padding:2px 8px;border-radius:10px;font-size:11px;}
-  .qtext{font-size:15px;line-height:1.7;background:#fbfaf6;border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:14px;}
-  .choice{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:8px;cursor:pointer;font-size:14px;line-height:1.5;background:#fff;}
-  .choice:hover{border-color:var(--navy-light);}
-  .choice .num{flex-shrink:0;width:22px;height:22px;border-radius:50%;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:12px;color:#888;}
-  .choice.correct{border-color:var(--correct);background:#eef7ef;}
-  .choice.correct .num{background:var(--correct);color:#fff;border-color:var(--correct);}
-  .choice.wrong{border-color:var(--wrong);background:#fbecec;}
-  .choice.wrong .num{background:var(--wrong);color:#fff;border-color:var(--wrong);}
-  .c-explain{font-size:12px;color:#666;margin-top:6px;line-height:1.5;}
-  .count-btn{padding:10px 16px;border:1px solid var(--line);border-radius:20px;background:#fff;font-size:14px;cursor:pointer;color:var(--ink);}
-  .count-btn.active{background:var(--navy);color:#fff;border-color:var(--navy);}
-  .tag-check{display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:16px;padding:6px 12px;font-size:13px;cursor:pointer;background:#fff;}
-  .tag-check input{width:auto;margin:0;}
-  .tag-check.checked{background:#eef1f6;border-color:var(--navy);color:var(--navy);}
-  .choice.selected-multi{border-color:var(--gold);background:#fbf5e9;}
-  .choice.selected-multi .num{background:var(--gold);color:#fff;border-color:var(--gold);}
-  .feedback{margin-top:14px;padding:14px;border-radius:10px;font-size:13px;line-height:1.6;}
-  .feedback.ok{background:#eef7ef;color:var(--correct);}
-  .feedback.ng{background:#fbecec;color:var(--wrong);}
-  .progressbar{height:5px;background:#eee;border-radius:3px;overflow:hidden;margin-bottom:16px;}
-  .progressbar div{height:100%;background:var(--gold);}
-  table{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px;}
-  th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);}
-  th{color:#888;font-weight:600;font-size:11px;}
-  .tabbar{display:flex;border-bottom:1px solid var(--line);margin-bottom:18px;}
-  .tabbar button{flex:1;background:none;border:none;padding:10px 0;font-size:13px;color:#888;cursor:pointer;border-bottom:2px solid transparent;}
-  .tabbar button.active{color:var(--navy);border-color:var(--gold);font-weight:700;}
-  .student-row{display:flex;justify-content:space-between;align-items:center;border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:8px;cursor:pointer;}
-  .student-row:hover{border-color:var(--gold);}
-  .student-row .name{font-size:14px;font-weight:600;}
-  .student-row .id{font-size:11px;color:#888;}
-  .student-row .stat{font-size:12px;color:var(--navy);}
-  .weak-tag{display:inline-flex;justify-content:space-between;width:100%;font-size:13px;padding:8px 10px;background:#fbecec;border-radius:8px;margin-bottom:6px;color:var(--wrong);}
-  .backlink{font-size:13px;color:var(--navy);cursor:pointer;display:inline-block;margin-bottom:14px;}
-  .center-note{text-align:center;color:#999;font-size:12px;padding:30px 0;}
-  .loading{text-align:center;color:#999;font-size:13px;padding:20px 0;}
-  .qcard{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:8px;position:relative;}
-  .qcard .s-meta{font-size:11px;color:#888;margin-top:2px;}
-  .qcard .del{position:absolute;top:10px;right:10px;font-size:11px;color:var(--wrong);background:none;border:none;cursor:pointer;text-decoration:underline;}
+  header h1 { margin: 0; font-size: 1.3em; }
+  .container {
+    max-width: 700px;
+    margin: 20px auto;
+    padding: 0 16px 60px;
+  }
+  .card {
+    background: white;
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+  }
+  .question-label {
+    font-weight: bold;
+    margin-bottom: 10px;
+    display: block;
+  }
+  .choices label {
+    display: block;
+    padding: 8px 10px;
+    margin-bottom: 6px;
+    background: #f0f3f5;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .choices input[type=radio] { margin-right: 8px; }
+  textarea, input[type=text] {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 1em;
+    font-family: inherit;
+  }
+  textarea { min-height: 80px; resize: vertical; }
+  .toggle-group {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .toggle-group button {
+    flex: 1;
+    padding: 10px;
+    border: 2px solid #1e4d6b;
+    background: white;
+    color: #1e4d6b;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 1em;
+  }
+  .toggle-group button.active {
+    background: #1e4d6b;
+    color: white;
+  }
+  .submit-btn {
+    width: 100%;
+    padding: 14px;
+    background: #1e4d6b;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 1.1em;
+    cursor: pointer;
+  }
+  .submit-btn:disabled { background: #999; }
+  .note { color: #666; font-size: 0.85em; margin-top: 4px; }
+  #thanks { text-align: center; padding: 60px 20px; }
+  #thanks h2 { color: #1e4d6b; }
+  .hidden { display: none !important; }
+  .footer-link {
+    text-align: center;
+    margin-top: 20px;
+    font-size: 0.85em;
+  }
+  .footer-link a { color: #1e4d6b; }
+
+  /* admin */
+  .admin-login {
+    max-width: 300px;
+    margin: 80px auto;
+    text-align: center;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85em;
+    background: white;
+  }
+  th, td {
+    border: 1px solid #ddd;
+    padding: 6px 8px;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { background: #1e4d6b; color: white; position: sticky; top: 0; }
+  .table-wrap { overflow-x: auto; }
+  .stat-bar-row { display: flex; align-items: center; margin-bottom: 6px; font-size: 0.9em; }
+  .stat-label { width: 200px; flex-shrink: 0; }
+  .stat-bar-bg { flex: 1; background: #eee; border-radius: 4px; height: 18px; margin: 0 8px; overflow: hidden; }
+  .stat-bar-fill { background: #1e4d6b; height: 100%; }
+  .stat-count { width: 40px; text-align: right; }
+  .export-btn {
+    padding: 10px 16px;
+    background: #2d7a3a;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    margin-bottom: 16px;
+  }
+  .tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.75em;
+    background: #ddd;
+  }
+  .tag.anon { background: #f1c40f33; color: #7a5c00; }
+  .tag.named { background: #1e4d6b22; color: #1e4d6b; }
+  .delete-btn {
+    padding: 4px 10px;
+    background: #c0392b;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.85em;
+    white-space: nowrap;
+  }
 </style>
 </head>
 <body>
-<div class="app">
-  <header class="topbar">
-    <div class="brand">社会福祉士 過去問道場<small id="topbarSub">読み込み中...</small></div>
-    <button class="linklike" onclick="goHome()">最初へ</button>
-  </header>
-  <main>
 
-    <section class="screen active" id="screen-home">
-      <h2 class="section-title">利用者を選んでください</h2>
-      <div class="role-cards">
-        <div class="role-card" onclick="showScreen('screen-student-login')">
-          <h3>学生としてログイン</h3>
-          <p>学籍番号と氏名を入力して、科目別に過去問を解きます。2回目以降は自動で名前が入ります。</p>
-        </div>
-        <div class="role-card" onclick="showScreen('screen-teacher-pin')">
-          <h3>教員としてログイン</h3>
-          <p>過去問の登録・編集と、学生ごとの取り組み状況の確認ができます。</p>
-        </div>
+<!-- ============ 教員回答フォーム ============ -->
+<div id="formView">
+  <header><h1>学修ピアサポーター制度について ご意見をお聞かせください</h1></header>
+  <div class="container">
+    <div class="card">
+      <p>先日ご説明した「学修ピアサポーター制度」について、率直なご意見をお願いいたします。所要時間は3〜5分程度です。いただいたご意見は教務委員会で集約し、8月の承認に向けた検討材料とさせていただきます。</p>
+    </div>
+
+    <div class="card">
+      <span class="question-label">回答方法を選んでください</span>
+      <div class="toggle-group">
+        <button type="button" id="btnNamed" class="active" onclick="setMode('named')">記名で回答</button>
+        <button type="button" id="btnAnon" onclick="setMode('anon')">匿名で回答</button>
       </div>
-    </section>
-
-    <section class="screen" id="screen-student-login">
-      <span class="backlink" onclick="goHome()">← 戻る</span>
-      <h2 class="section-title">学生ログイン</h2>
-      <label>学籍番号</label>
-      <input type="text" id="stuId" placeholder="例: 24E1234" oninput="tryAutofill()">
-      <div class="row2">
-        <div><label>姓</label><input type="text" id="stuLast" placeholder="例: 大分"></div>
-        <div><label>名</label><input type="text" id="stuFirst" placeholder="例: 太郎"></div>
+      <div id="nameField">
+        <input type="text" id="respName" placeholder="お名前（例：河村裕次）">
       </div>
-      <label>入学年度(学籍番号から自動判定されます。違う場合だけ選び直してください)</label>
-      <select id="stuEnrollYear"></select>
-      <p class="note" id="autofillNote"></p>
-      <button class="primary" onclick="studentLogin()">ログインして科目を選ぶ</button>
-      <button class="ghost" onclick="loginAsDemo()">動作確認用のデモ学生でログイン(学生の進捗には表示されません)</button>
-    </section>
+      <p class="note" id="anonNote" class="hidden">匿名の場合、お名前は記録されません。</p>
+    </div>
 
-    <section class="screen" id="screen-mode-select">
-      <span class="backlink" onclick="showScreen('screen-student-login')">← 戻る</span>
-      <h2 class="section-title"><span id="stuGreeting"></span>さん・学習方法を選択</h2>
-      <div id="streakBadge" style="display:none;background:#fbf5e9;border:1px solid var(--gold);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:14px;color:var(--gold);font-weight:700;"></div>
-      <div class="role-cards">
-        <div class="role-card" onclick="openExamSetup()">
-          <h3>模擬試験モード</h3>
-          <p>実施回を選んで、その回の問題を通しで解きます(科目をまたいで本番形式)。</p>
-        </div>
-        <div class="role-card" onclick="showScreen('screen-subject-select')">
-          <h3>科目別モード</h3>
-          <p>科目を選んで、その科目の過去問からランダムに出題されます。問題数も選べます。</p>
-        </div>
-        <div class="role-card" onclick="startReviewMode()">
-          <h3>復習モード</h3>
-          <p>これまで間違えたままの問題だけをまとめて解き直します。</p>
-        </div>
-        <div class="role-card" onclick="startFavoriteMode()">
-          <h3>お気に入り問題</h3>
-          <p>解いているときに★をつけた問題だけを解き直します。</p>
-        </div>
-        <div class="role-card" onclick="showMyProgress()">
-          <h3>学習記録を見る</h3>
-          <p>連続学習日数や、最近の正答率の推移を確認できます。</p>
-        </div>
-      </div>
-    </section>
+    <div class="card">
+      <span class="question-label">Q1. 学修ピアサポーター制度の導入そのものについて、どうお考えですか。</span>
+      <div class="choices" id="q1"></div>
+    </div>
 
-    <section class="screen" id="screen-my-progress">
-      <span class="backlink" onclick="showScreen('screen-mode-select')">← 戻る</span>
-      <h2 class="section-title">学習記録</h2>
-      <div id="myProgressStreak" style="margin-bottom:18px;"></div>
-      <h3 style="font-size:13px;color:var(--navy);">直近の正答率(日別)</h3>
-      <div id="myProgressChart" style="margin-top:10px;"></div>
-    </section>
+    <div class="card">
+      <span class="question-label">Q2. 対象範囲（経営経済学部全体・学年不問の公募制）について、どうお考えですか。</span>
+      <div class="choices" id="q2"></div>
+    </div>
 
-    <section class="screen" id="screen-subject-select">
-      <span class="backlink" onclick="showScreen('screen-mode-select')">← 戻る</span>
-      <h2 class="section-title">科目を選択</h2>
-      <div class="subject-list" id="subjectList"><div class="loading">読み込み中...</div></div>
-    </section>
+    <div class="card">
+      <span class="question-label">Q3. 任命方法（公募＋教務委員会推薦＋学部長任命）について、どうお考えですか。</span>
+      <div class="choices" id="q3"></div>
+    </div>
 
-    <section class="screen" id="screen-exam-setup">
-      <span class="backlink" onclick="showScreen('screen-mode-select')">← 戻る</span>
-      <h2 class="section-title">模擬試験モード・実施回を選択</h2>
-      <div class="subject-list" id="examRoundList"></div>
-    </section>
+    <div class="card">
+      <span class="question-label">Q4. 想定する役割（新入生スタートアップ企画運営・授業評価アンケートへのコメント）について、どうお考えですか。</span>
+      <div class="choices" id="q4"></div>
+    </div>
 
-    <section class="screen" id="screen-quiz-setup">
-      <span class="backlink" onclick="showScreen('screen-subject-select')">← 科目選択に戻る</span>
-      <h2 class="section-title" id="setupSubjectName"></h2>
-      <p class="note" id="setupSubjectMeta" style="margin-top:0;"></p>
-      <label>何問解きますか？</label>
-      <div id="quizCountButtons" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;"></div>
-      <button class="primary" id="startQuizBtn" onclick="startQuizWithCount()">この問題数で始める</button>
-    </section>
+    <div class="card">
+      <span class="question-label">Q5. 制度について懸念点があればご記入ください（任意）</span>
+      <textarea id="q5free" placeholder="懸念点があれば自由にご記入ください"></textarea>
+    </div>
 
-    <section class="screen" id="screen-quiz">
-      <span class="backlink" onclick="quizBackToSelect()">← 選択に戻る</span>
-      <div class="progressbar"><div id="quizProgressBar" style="width:0%"></div></div>
-      <div class="qmeta">
-        <span id="quizCounter"></span>
-        <span style="display:flex;gap:6px;align-items:center;">
-          <span class="qtag" id="quizRoundBadge" style="display:none;background:#f3ede0;color:var(--gold);"></span>
-          <span class="qtag" id="quizTag"></span>
-          <button type="button" id="favBtn" onclick="toggleFavorite()" style="border:none;background:none;font-size:20px;cursor:pointer;color:#ccc;line-height:1;padding:0;">☆</button>
-        </span>
-      </div>
-      <div class="qtext" id="quizText"></div>
-      <div id="choicesWrap"></div>
-      <button class="secondary" id="confirmAnswerBtn" style="display:none" onclick="confirmMultiAnswer()" disabled>回答を確定する</button>
-      <div id="feedbackWrap"></div>
-      <button class="primary" id="nextBtn" style="display:none" onclick="nextQuestion()">次の問題へ</button>
-    </section>
+    <div class="card">
+      <span class="question-label">Q6. 改善提案があればご記入ください（任意）</span>
+      <textarea id="q6free" placeholder="改善提案があれば自由にご記入ください"></textarea>
+    </div>
 
-    <section class="screen" id="screen-result">
-      <h2 class="section-title">結果</h2>
-      <div id="resultSummary"></div>
-      <div id="resultSubjectWrap" style="display:none;">
-        <h3 style="font-size:13px;color:var(--navy);margin-top:20px;">科目別の正答状況</h3>
-        <table id="resultSubjectTable"></table>
-      </div>
-      <h3 style="font-size:13px;color:var(--navy);margin-top:20px;">分野別の正答状況</h3>
-      <table id="resultTagTable"></table>
-      <button class="primary" onclick="showScreen('screen-mode-select')">続けて学習する</button>
-      <button class="secondary" onclick="goHome()">終了する</button>
-    </section>
-
-    <section class="screen" id="screen-teacher-pin">
-      <span class="backlink" onclick="goHome()">← 戻る</span>
-      <h2 class="section-title">教員ログイン</h2>
-      <label>PINコード</label>
-      <input type="password" id="teacherPin" placeholder="4桁のPIN" maxlength="4">
-      <button class="primary" onclick="teacherLogin()">ログイン</button>
-    </section>
-
-    <section class="screen" id="screen-teacher-dash">
-      <span class="backlink" onclick="goHome()">← ログアウト</span>
-      <div class="tabbar">
-        <button class="active" id="tabBtnQ" onclick="switchTeacherTab('q')">過去問管理</button>
-        <button id="tabBtnS" onclick="switchTeacherTab('s')">学生の進捗</button>
-      </div>
-
-      <div id="teacherTabQ">
-        <h2 class="section-title">過去問を追加</h2>
-        <label>科目</label>
-        <select id="qSubject"></select>
-        <label>この科目の出題数(ランダムに何問出題するか)</label>
-        <input type="number" id="qSubjectLen" min="1" max="50" value="10" onchange="saveQuizLength()">
-        <label>分野タグ(苦手分野分析に使用・複数の分野にまたがる問題は複数チェック可)</label>
-        <div id="qTagChecks" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
-        <div id="qTagNewWrap" style="margin-top:8px;">
-          <input type="text" id="qTagNew" placeholder="新しいタグ名を入力">
-          <button type="button" class="secondary" style="margin-top:6px;" onclick="confirmNewTag()">このタグを追加する</button>
-        </div>
-        <p class="note">科目ごとのタグ一覧は「試験科目別出題基準」の中項目をもとにしています。誤りがあれば、上の欄から直接追加できます。</p>
-        <div class="row2">
-          <div><label>実施回(例: 第37回)</label><input type="text" id="qRound" placeholder="第37回"></div>
-          <div><label>問題番号(例: 問5)</label><input type="text" id="qNumber" placeholder="問5"></div>
-        </div>
-        <label>問題文</label>
-        <textarea id="qText" placeholder="問題文を入力"></textarea>
-        <label>選択肢と解説(5つ・それぞれ「なぜ正しい/誤りか」を入力)</label>
-        <div class="row2"><input type="text" id="qC1" placeholder="選択肢1"></div>
-        <textarea id="qE1" placeholder="選択肢1の解説" style="margin-top:4px;margin-bottom:10px;min-height:44px;"></textarea>
-        <div class="row2"><input type="text" id="qC2" placeholder="選択肢2"></div>
-        <textarea id="qE2" placeholder="選択肢2の解説" style="margin-top:4px;margin-bottom:10px;min-height:44px;"></textarea>
-        <div class="row2"><input type="text" id="qC3" placeholder="選択肢3"></div>
-        <textarea id="qE3" placeholder="選択肢3の解説" style="margin-top:4px;margin-bottom:10px;min-height:44px;"></textarea>
-        <div class="row2"><input type="text" id="qC4" placeholder="選択肢4"></div>
-        <textarea id="qE4" placeholder="選択肢4の解説" style="margin-top:4px;margin-bottom:10px;min-height:44px;"></textarea>
-        <div class="row2"><input type="text" id="qC5" placeholder="選択肢5"></div>
-        <textarea id="qE5" placeholder="選択肢5の解説" style="margin-top:4px;margin-bottom:10px;min-height:44px;"></textarea>
-        <label>正解(複数正解の問題はすべてチェック)</label>
-        <div class="row2" id="qAnswerChecks" style="gap:14px;align-items:center;">
-          <label style="display:flex;align-items:center;gap:4px;font-size:14px;color:var(--ink);"><input type="checkbox" class="qAns" value="1" style="width:auto;">1</label>
-          <label style="display:flex;align-items:center;gap:4px;font-size:14px;color:var(--ink);"><input type="checkbox" class="qAns" value="2" style="width:auto;">2</label>
-          <label style="display:flex;align-items:center;gap:4px;font-size:14px;color:var(--ink);"><input type="checkbox" class="qAns" value="3" style="width:auto;">3</label>
-          <label style="display:flex;align-items:center;gap:4px;font-size:14px;color:var(--ink);"><input type="checkbox" class="qAns" value="4" style="width:auto;">4</label>
-          <label style="display:flex;align-items:center;gap:4px;font-size:14px;color:var(--ink);"><input type="checkbox" class="qAns" value="5" style="width:auto;">5</label>
-        </div>
-        <p class="note" id="editingNotice" style="display:none;color:var(--gold);font-weight:700;">この過去問を編集中です。内容を直して「この内容で更新する」を押してください。</p>
-        <button class="primary" id="addQBtn" onclick="addQuestion()">この過去問を登録する</button>
-        <button class="ghost" id="cancelEditBtn" style="display:none;" onclick="cancelEdit()">編集をやめて新規登録に戻る</button>
-
-        <h2 class="section-title" style="margin-top:28px;">登録済みの過去問<span id="qCountLabel"></span></h2>
-        <div class="row2">
-          <div><label>科目で絞り込み</label><select id="qFilterSubject" onchange="renderRegisteredQuestions()"></select></div>
-          <div><label>実施回で絞り込み</label><select id="qFilterRound" onchange="renderRegisteredQuestions()"></select></div>
-        </div>
-        <div id="registeredQList" style="margin-top:10px;"><div class="loading">読み込み中...</div></div>
-      </div>
-
-      <div id="teacherTabS" style="display:none">
-        <h2 class="section-title">学生一覧</h2>
-        <label>学年で絞り込み</label>
-        <select id="studentFilterGrade" onchange="renderStudentList()">
-          <option value="">すべての学年</option>
-          <option value="1年">1年</option>
-          <option value="2年">2年</option>
-          <option value="3年">3年</option>
-          <option value="4年">4年</option>
-          <option value="5年目以降">5年目以降</option>
-        </select>
-        <button class="secondary" onclick="exportCsv()">CSVで一覧をダウンロード</button>
-        <div id="studentListWrap" style="margin-top:14px;"><div class="loading">読み込み中...</div></div>
-      </div>
-    </section>
-
-    <section class="screen" id="screen-student-detail">
-      <span class="backlink" onclick="switchTeacherTab('s'); showScreen('screen-teacher-dash')">← 学生一覧に戻る</span>
-      <h2 class="section-title" id="detailStuName"></h2>
-      <h3 style="font-size:13px;color:var(--navy);">科目別 正答率</h3>
-      <table id="detailSubjectTable"></table>
-      <h3 style="font-size:13px;color:var(--wrong);margin-top:18px;">苦手分野(正答率50%未満)</h3>
-      <div id="detailWeakTags"></div>
-      <div id="detailExamWrap" style="display:none;">
-        <h3 style="font-size:13px;color:var(--gold);margin-top:18px;">模擬試験の結果</h3>
-        <div id="detailExamResults"></div>
-      </div>
-      <h3 style="font-size:13px;color:var(--navy);margin-top:18px;">解答履歴</h3>
-      <div id="detailHistoryTable"></div>
-      <button class="danger" id="detailDeleteBtn" onclick="deleteStudentFromDetail()">この学生を削除する</button>
-    </section>
-
-  </main>
+    <button class="submit-btn" id="submitBtn" onclick="submitResponse()">回答を送信する</button>
+    <div class="footer-link"><a href="#" onclick="showAdminLogin();return false;">教務委員会（集計）はこちら</a></div>
+  </div>
 </div>
 
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import {
-  getDatabase, ref, get, set, push, update, remove, child
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
-import {
-  getAuth, signInAnonymously
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+<div id="thanks" class="hidden">
+  <h2>ご回答ありがとうございました</h2>
+  <p>いただいたご意見は教務委員会にて集約させていただきます。</p>
+</div>
 
-/* ★★★ ここをFirebaseコンソールで作成したプロジェクトの値に置き換えてください ★★★ */
-const firebaseConfig = {
-  apiKey: "AIzaSyAn4nFuLtkEkvqusQRWxDIyCcKcOax34bA",
-  authDomain: "kokka-quiz-app.firebaseapp.com",
-  databaseURL: "https://kokka-quiz-app-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "kokka-quiz-app",
-  storageBucket: "kokka-quiz-app.firebasestorage.app",
-  messagingSenderId: "102150596810",
-  appId: "1:102150596810:web:b9a12f4fc15345f7a42c33"
-};
+<!-- ============ 管理者ログイン ============ -->
+<div id="adminLogin" class="hidden">
+  <div class="admin-login">
+    <h2>教務委員会 集計画面</h2>
+    <input type="text" id="adminPin" placeholder="PINコード" style="text-align:center; font-size:1.3em; margin-bottom:12px;">
+    <button class="submit-btn" onclick="checkAdminPin()">ログイン</button>
+    <p class="note"><a href="#" onclick="showForm();return false;">回答フォームに戻る</a></p>
+  </div>
+</div>
 
-const TEACHER_PIN = "1234"; // ★ 必要に応じて変更してください
+<!-- ============ 管理者画面 ============ -->
+<div id="adminView" class="hidden">
+  <header><h1>学修ピアサポーター制度 意見集約（教務委員会）</h1></header>
+  <div class="container">
+    <div class="card">
+      <button class="export-btn" onclick="exportCSV()">CSVでダウンロード</button>
+      <p class="note">現在の回答数: <span id="totalCount">0</span>件</p>
+    </div>
 
-const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
-const auth = getAuth(app);
+    <div class="card">
+      <h3>Q1. 制度導入への賛否</h3>
+      <div id="stat_q1"></div>
+    </div>
+    <div class="card">
+      <h3>Q2. 対象範囲について</h3>
+      <div id="stat_q2"></div>
+    </div>
+    <div class="card">
+      <h3>Q3. 任命方法について</h3>
+      <div id="stat_q3"></div>
+    </div>
+    <div class="card">
+      <h3>Q4. 想定する役割について</h3>
+      <div id="stat_q4"></div>
+    </div>
 
-document.getElementById("topbarSub").textContent = "";
-
-/* ===================== 定数 ===================== */
-const SUBJECTS = [
-  "医学概論","心理学と心理的支援","社会学と社会システム",
-  "社会福祉の原理と政策","社会保障","権利擁護を支える法制度",
-  "地域福祉と包括的支援体制","障害者福祉","刑事司法と福祉",
-  "ソーシャルワークの基盤と専門職","ソーシャルワークの理論と方法","社会福祉調査の基礎",
-  "高齢者福祉","児童・家庭福祉","貧困に対する支援","保健医療と福祉",
-  "ソーシャルワークの基盤と専門職(専門)","ソーシャルワークの理論と方法(専門)","福祉サービスの組織と経営"
-];
-const DEFAULT_QUIZ_LENGTH = 10;
-const DEMO_STUDENT_ID = "DEMO0000"; // 動作確認用。学生一覧・CSVからは除外される
-
-// 各科目の中項目タグ(社会福祉振興・試験センター公表の出題基準より作成)
-const DEFAULT_SUBJECT_TAGS = {
-  "医学概論": [
-    "ライフステージにおける心身の変化と健康課題","心身の加齢・老化","ライフステージ別の健康課題",
-    "健康の概念","疾病の概念","国際生活機能分類(ICF)","人体部位の名称","基幹系と臓器の役割",
-    "疾病の発生原因","病変の成立機序","障害の概要","リハビリテーションの概要と範囲",
-    "疾病と障害及びその予防・治療・予後・リハビリテーション","公衆衛生の概要","健康増進と保健医療対策"
-  ],
-  "心理学と心理的支援": [
-    "心理学の歴史と対象","心を探究する方法の発展","心の生物学的基盤","感情・動機づけ・欲求","感覚・知覚",
-    "学習・行動","認知","個人差","人と環境","生涯発達","心の発達の基盤","心の不適応","健康生成論",
-    "心理アセスメント","心理的支援の基本的技法","心理療法におけるアセスメントと介入技法の概要","心理の専門職"
-  ],
-  "社会学と社会システム": [
-    "社会学の歴史と対象","社会システム","組織と集団","人口","グローバリゼーション","社会変動","地域","環境",
-    "社会的格差","社会政策と社会問題","差別と偏見","災害と復興","家族とジェンダー","健康","労働","世代",
-    "自己と他者","社会化","相互行為"
-  ],
-  "社会福祉の原理と政策": [
-    "社会福祉の原理を学ぶ視点","社会福祉の歴史を学ぶ視点","日本の社会福祉の歴史的展開","欧米の社会福祉の歴史的展開",
-    "社会福祉の思想・哲学","社会福祉の理論","社会福祉の論点","現代における社会問題","社会問題の構造的背景",
-    "福祉政策の概念・理念","ニーズ","資源","福祉政策の構成要素","福祉政策の過程","関連政策","福祉供給部門",
-    "福祉供給過程","福祉利用過程","福祉政策の国際比較"
-  ],
-  "社会福祉調査の基礎": [
-    "社会福祉調査の意義と目的","社会福祉調査と社会福祉の歴史的関係","統計法","社会福祉調査における倫理",
-    "社会福祉調査における個人情報保護","調査における考え方・論理","社会福祉調査の目的と対象",
-    "社会福祉調査でのデータ収集・分析","社会福祉調査のプロセス","量的調査の概要","質問紙の作成方法と留意点",
-    "質問紙の配布と回収","量的調査の集計と分析","質的調査の概要","観察法","面接法","質的調査における記録の方法と留意点",
-    "ソーシャルワークにおける評価の意義","ソーシャルワークにおける評価対象","ソーシャルワークにおける評価方法"
-  ],
-  "ソーシャルワークの基盤と専門職": [
-    "社会福祉士及び介護福祉士法","精神保健福祉士法","社会福祉士及び精神保健福祉士の専門性","ソーシャルワークの定義",
-    "ソーシャルワークの原理","ソーシャルワークの理念","ソーシャルワークの援助関係の意義","ソーシャルワークの形成過程",
-    "専門職倫理の概念","専門職の倫理綱領","倫理的ジレンマ"
-  ],
-  "ソーシャルワークの基盤と専門職(専門)": [
-    "ソーシャルワーク専門職の概念と範囲","社会福祉士の職域","福祉行政等における専門職","民間の施設・組織における専門職",
-    "諸外国の動向","ミクロ・メゾ・マクロレベルの対象","ミクロ・メゾ・マクロレベルにおけるソーシャルワーク",
-    "ジェネラリストの視点に基づく総合的かつ包括的な支援の意義と内容","ジェネラリストの視点に基づく多職種連携及びチームアプローチの意義と内容"
-  ],
-  "ソーシャルワークの理論と方法": [
-    "システム理論","生態学理論","バイオ・サイコ・ソーシャルモデル","ミクロ・メゾ・マクロレベルにおけるソーシャルワーク",
-    "様々な実践モデルとアプローチ","ケースの発見","エンゲージメント(インテーク)","アセスメント","プランニング",
-    "支援の実施","モニタリング","支援の終結と事後評価","記録の意義と目的","記録の方法と実際","ケアマネジメントの原則",
-    "ケアマネジメントの意義と方法","グループワークの意義と目的","グループワークの原則","グループワークの展開過程",
-    "セルフヘルプグループ","コミュニティワークの意義と目的","コミュニティワークの展開",
-    "スーパービジョンの意義、目的、方法","コンサルテーションの意義、目的、方法"
-  ],
-  "ソーシャルワークの理論と方法(専門)": [
-    "援助関係の意義と概念","援助関係の形成方法","面接技術","アウトリーチ","社会資源の活用・調整・開発",
-    "ソーシャルアクション","ネットワーキング","コーディネーション","ネゴシエーション","ファシリテーション",
-    "プレゼンテーション","カンファレンス","事例分析","事例検討、事例研究","総合的かつ包括的な支援の考え方",
-    "家族支援の実際","地域支援の実際","非常時や災害時支援の実際"
-  ],
-  "地域福祉と包括的支援体制": [
-    "地域福祉の概念と理論","地域福祉の歴史","地域福祉の動向","地域福祉の推進主体","地域福祉の主体と形成",
-    "国の役割","都道府県の役割","市町村の役割","福祉行政の組織及び専門職の役割","福祉における財源",
-    "福祉計画の意義・目的と展開","市町村地域福祉計画・都道府県地域福祉支援計画の内容","福祉計画の策定過程と方法",
-    "福祉計画の実施と評価","地域社会の概念と理論","地域社会の変化","多様化・複雑化した地域生活課題の現状とニーズ",
-    "地域福祉と社会的孤立","地域包括ケアシステム","生活困窮者自立支援の考え方","地域共生社会の実現に向けた各種施策",
-    "多機関協働を促進する仕組み","多職種連携","福祉以外の分野との連携","非常時や災害時における総合的かつ包括的な支援",
-    "地域福祉ガバナンス","地域共生社会の構築"
-  ],
-  "福祉サービスの組織と経営": [
-    "福祉サービスを提供する組織","福祉サービスの沿革と概況","組織間連携の促進","組織運営に関する基礎理論",
-    "チームに関する基礎理論","リーダーシップに関する基礎理論","経営体制","福祉サービス提供組織のコンプライアンスとガバナンス",
-    "適切な福祉サービスの管理","情報管理","会計管理と財務管理","福祉人材の育成","福祉人材マネジメント",
-    "働きやすい労働環境の整備"
-  ],
-  "社会保障": [
-    "人口動態の変化","経済環境の変化","労働環境の変化","社会保障の概念と範囲","社会保障の目的","社会保障の機能",
-    "社会保障の対象","社会保障制度の歴史","社会保障給付費","社会保障の費用負担","社会保険の概念と範囲",
-    "社会扶助の概念と範囲","公的保険と民間保険の現状","医療保険制度の概要","介護保険制度の概要","年金保険制度の概要",
-    "労災保険制度と雇用保険制度の概要","生活保護制度の概要","社会手当制度の概要","社会福祉制度の概要","社会保障制度の国際比較"
-  ],
-  "高齢者福祉": [
-    "高齢者の定義","高齢者の特性","高齢者の生活実態","高齢者を取り巻く社会環境","高齢者福祉の理念","高齢者観の変遷",
-    "高齢者福祉制度の発展過程","介護保険法","老人福祉法","高齢者の医療の確保に関する法律(高齢者医療確保法)",
-    "高齢者虐待の防止、高齢者の養護者に対する支援等に関する法律(高齢者虐待防止法)",
-    "高齢者、障害者等の移動等の円滑化の促進に関する法律(バリアフリー法)","高年齢者等の雇用の安定等に関する法律",
-    "育児・介護休業法","高齢者と家族等の支援における関係機関の役割","関連する専門職等の役割","社会福祉士の役割",
-    "高齢者と家族等に対する支援の実際"
-  ],
-  "障害者福祉": [
-    "国際生活機能分類(ICF)","障害者の定義と特性","障害者の生活実態","障害者を取り巻く社会環境","障害者福祉の理念",
-    "障害観の変遷","障害者処遇の変遷","障害者権利条約と障害者基本法","障害者福祉制度の発展過程","障害者総合支援法",
-    "身体障害者福祉法","知的障害者福祉法","精神保健福祉法","児童福祉法","発達障害者支援法","障害者虐待防止法",
-    "障害者差別解消法","バリアフリー法","障害者雇用促進法","障害者優先調達推進法","関連する専門職等の役割",
-    "社会福祉士及び精神保健福祉士の役割","障害者と家族等に対する支援の実際"
-  ],
-  "児童・家庭福祉": [
-    "児童・家庭の定義","児童の権利","児童・家庭の生活実態","児童・家庭を取り巻く社会環境","児童福祉の理念",
-    "児童観の変遷","児童・家庭福祉制度の発展過程","児童福祉法","児童虐待防止法","DV防止法","母子及び父子並びに寡婦福祉法",
-    "母子保健法","子ども・子育て支援法","児童手当法","児童扶養手当法","特別児童扶養手当等の支給に関する法律",
-    "次世代育成支援対策推進法","少子化社会対策基本法","困難な問題を抱える女性への支援に関する法律",
-    "就学前の子どもに関する教育、保育等の総合的な提供の推進に関する法律","子どもの貧困対策の推進に関する法律",
-    "子ども・若者育成支援推進法","いじめ防止対策推進法","児童や家庭に対する支援における公私の役割関係",
-    "国、都道府県、市町村の役割","児童相談所の役割","関連する専門職等の役割","社会福祉士の役割","支援の実際"
-  ],
-  "貧困に対する支援": [
-    "貧困の概念","公的扶助の意義と範囲","貧困状態にある人の生活実態","貧困状態にある人を取り巻く社会環境",
-    "貧困状態にある人に対する福祉の理念","貧困観の変遷","貧困に対する制度の発展過程","生活保護法",
-    "生活困窮者自立支援法","低所得者対策","ホームレス対策","貧困に対する支援における公私の役割関係",
-    "国、都道府県、市町村の役割","福祉事務所の役割","自立相談支援機関の役割","関連する専門職等の役割",
-    "社会福祉士の役割","貧困に対する支援の実際"
-  ],
-  "保健医療と福祉": [
-    "疾病構造の変化","医療施設から在宅医療へ","保健医療における福祉的課題","医療保険制度の概要","診療報酬制度の概要",
-    "医療施設の概要","保健医療対策の概要","自己決定権の尊重","保健医療に係る倫理","保健医療領域における専門職",
-    "保健医療領域における連携・協働","社会福祉士の役割","保健医療領域における支援の実際"
-  ],
-  "権利擁護を支える法制度": [
-    "法と規範","法の体系、種類、機能","法律の基礎知識、法の解釈","裁判制度、判例を学ぶ意義","憲法","民法","行政法",
-    "権利擁護の意義","福祉サービスの適切な利用","苦情解決の仕組み","虐待防止法の概要","差別禁止法の概要",
-    "意思決定支援ガイドライン","インフォームド・コンセント","秘密・プライバシー・個人情報","権利擁護活動と社会の安全",
-    "権利擁護に関わる組織、団体の役割","成年後見の概要","後見の概要","保佐の概要","補助の概要","任意後見の概要",
-    "成年後見制度の最近の動向","成年後見制度利用支援事業","日常生活自立支援事業"
-  ],
-  "刑事司法と福祉": [
-    "刑事司法における近年の動向","刑事司法を取り巻く社会環境","社会福祉士及び精神保健福祉士の役割","刑法",
-    "刑事事件の手続き、処遇","少年法","少年事件の手続き、処遇","更生保護制度の概要","生活環境の調整","仮釈放等",
-    "保護観察","更生緊急保護","医療観察制度の概要","審判・処遇の流れと内容","関係機関・専門職等の役割と連携",
-    "犯罪被害者の法的地位","犯罪被害者支援に関する動向","犯罪被害者支援に関する制度","団体・専門職等の役割・連携"
-  ]
-};
-
-/* ===================== 状態 ===================== */
-let ALL_QUESTIONS = {};   // id -> question
-let ALL_STUDENTS = {};    // studentId -> {last, first}
-let ALL_ANSWERS = {};     // id -> {studentId, subject, tag, correct, date}
-let QUIZ_LENGTHS = {};    // subject -> number
-let SUBJECT_TAGS = {};    // subject -> [tag, tag, ...]
-let MY_FAVORITES = {};    // questionId -> true (現在ログイン中の学生のみ)
-let currentStudent = null;
-let currentDetailStudentId = null;
-let quizQueue = [];
-let quizIndex = 0;
-let quizResults = [];
-
-/* ===================== ユーティリティ ===================== */
-function showScreen(id){
-  document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
-  document.getElementById(id).classList.add("active");
-  window.scrollTo(0,0);
-}
-function goHome(){ showScreen("screen-home"); }
-function shuffle(arr){
-  const a = arr.slice();
-  for(let i=a.length-1;i>0;i--){
-    const j = Math.floor(Math.random()*(i+1));
-    [a[i],a[j]] = [a[j],a[i]];
-  }
-  return a;
-}
-function todayStr(){ return new Date().toISOString().slice(0,10); }
-
-/* ===================== 入学年度→学年の自動計算 ===================== */
-function currentAcademicYear(){
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = now.getMonth()+1; // 1-12
-  return m < 4 ? y-1 : y; // 4月始まりの年度
-}
-function gradeLabelFromEnrollYear(enrollYear){
-  if(!enrollYear) return "";
-  const diff = currentAcademicYear() - parseInt(enrollYear) + 1;
-  if(diff <= 0) return "入学前";
-  if(diff >= 5) return "5年目以降";
-  return diff + "年";
-}
-function populateEnrollYearSelect(){
-  const sel = document.getElementById("stuEnrollYear");
-  const ay = currentAcademicYear();
-  let opts = "";
-  for(let y = ay; y >= ay-5; y--){
-    opts += `<option value="${y}">${y}年度入学(現在${gradeLabelFromEnrollYear(y)})</option>`;
-  }
-  sel.innerHTML = opts;
-}
-populateEnrollYearSelect();
-
-window.showScreen = showScreen;
-window.goHome = goHome;
-
-/* ===================== 初期データ読み込み ===================== */
-async function loadAll(){
-  const [qSnap, sSnap, aSnap, lenSnap, tagSnap] = await Promise.all([
-    get(ref(db, "questions")),
-    get(ref(db, "students")),
-    get(ref(db, "answers")),
-    get(ref(db, "quizLengths")),
-    get(ref(db, "subjectTags"))
-  ]);
-  ALL_QUESTIONS = qSnap.exists() ? qSnap.val() : {};
-  ALL_STUDENTS = sSnap.exists() ? sSnap.val() : {};
-  ALL_ANSWERS = aSnap.exists() ? aSnap.val() : {};
-  QUIZ_LENGTHS = lenSnap.exists() ? lenSnap.val() : {};
-  const savedTags = tagSnap.exists() ? tagSnap.val() : {};
-  SUBJECT_TAGS = {};
-  SUBJECTS.forEach(s=>{
-    SUBJECT_TAGS[s] = savedTags[s] || DEFAULT_SUBJECT_TAGS[s] || [];
-  });
-}
-
-function tagsOf(subject){
-  return SUBJECT_TAGS[subject] || [];
-}
-
-function questionsOf(subject){
-  return Object.entries(ALL_QUESTIONS)
-    .filter(([id,q])=>q.subject===subject)
-    .map(([id,q])=>({id, ...q}));
-}
-function answersOfStudent(studentId){
-  return Object.values(ALL_ANSWERS).filter(a=>a.studentId===studentId);
-}
-
-function numberSortKey(q){
-  const m = (q.number||"").match(/(\d+)/);
-  return m ? parseInt(m[1]) : 99999;
-}
-function availableRounds(){
-  return [...new Set(Object.values(ALL_QUESTIONS).map(q=>q.round).filter(Boolean))].sort();
-}
-function questionsOfRound(round){
-  return Object.entries(ALL_QUESTIONS)
-    .filter(([id,q])=>q.round===round)
-    .map(([id,q])=>({id, ...q}))
-    .sort((a,b)=> numberSortKey(a) - numberSortKey(b));
-}
-
-/* ===================== お気に入り・連続学習日数・学習記録 ===================== */
-async function refreshStreakAndFavorites(){
-  if(!currentStudent) return;
-  const favSnap = await get(ref(db, "favorites/"+currentStudent.id));
-  MY_FAVORITES = favSnap.exists() ? favSnap.val() : {};
-  renderStreakBadge();
-}
-
-function computeStreak(studentId){
-  const dates = [...new Set(answersOfStudent(studentId).map(a=>a.date))].sort((a,b)=>b.localeCompare(a));
-  if(dates.length===0) return 0;
-  const oneDay = 24*60*60*1000;
-  let streak = 0;
-  let cursor = new Date(todayStr()+"T00:00:00");
-  // 今日まだ解いていない場合は「昨日まで」からの連続日数として数える
-  if(dates[0] !== todayStr()) cursor = new Date(dates[0]+"T00:00:00");
-  for(let i=0;i<dates.length;i++){
-    const expected = cursor.toISOString().slice(0,10);
-    if(dates[i] === expected){
-      streak++;
-      cursor = new Date(cursor.getTime() - oneDay);
-    } else {
-      break;
-    }
-  }
-  return streak;
-}
-
-function renderStreakBadge(){
-  if(!currentStudent) return;
-  const streak = computeStreak(currentStudent.id);
-  const badge = document.getElementById("streakBadge");
-  if(streak > 0){
-    badge.style.display = "block";
-    badge.textContent = `🔥 ${streak}日連続で学習しています`;
-  } else {
-    badge.style.display = "none";
-  }
-}
-
-const STREAK_BADGES = [
-  {days:3, icon:"🔥", label:"3日連続"},
-  {days:7, icon:"🔥", label:"7日連続"},
-  {days:14, icon:"⭐", label:"14日連続"},
-  {days:30, icon:"🏆", label:"30日連続"},
-];
-const COUNT_BADGES = [
-  {count:50, icon:"📘", label:"50問達成"},
-  {count:100, icon:"📗", label:"100問達成"},
-  {count:300, icon:"📙", label:"300問達成"},
-  {count:500, icon:"📕", label:"500問達成"},
-  {count:1000, icon:"🎓", label:"1000問達成"},
-];
-
-function renderBadgeGrid(current, badges, unitLabel){
-  return `<div style="display:flex;flex-wrap:wrap;gap:10px;">` + badges.map(b=>{
-    const threshold = b.days!==undefined ? b.days : b.count;
-    const unlocked = current >= threshold;
-    return `<div style="width:96px;text-align:center;padding:10px 6px;border-radius:10px;border:1px solid ${unlocked?'var(--gold)':'var(--line)'};background:${unlocked?'#fbf5e9':'#f7f7f5'};opacity:${unlocked?'1':'0.55'};">
-      <div style="font-size:26px;">${b.icon}</div>
-      <div style="font-size:11px;margin-top:4px;color:${unlocked?'var(--gold)':'#999'};font-weight:${unlocked?'700':'400'};">${b.label}</div>
-      ${!unlocked ? `<div style="font-size:10px;color:#999;margin-top:2px;">あと${threshold-current}${unitLabel}</div>` : ""}
-    </div>`;
-  }).join("") + `</div>`;
-}
-
-window.showMyProgress = function(){
-  const streak = computeStreak(currentStudent.id);
-  const logs = answersOfStudent(currentStudent.id);
-  const totalAnswered = logs.length;
-
-  document.getElementById("myProgressStreak").innerHTML =
-    `<div class="feedback ok" style="display:inline-block;">🔥 現在 ${streak}日連続で学習中・累計 ${totalAnswered}問</div>
-     <h3 style="font-size:13px;color:var(--navy);margin-top:18px;">連続学習日数バッジ</h3>
-     ${renderBadgeGrid(streak, STREAK_BADGES, "日")}
-     <h3 style="font-size:13px;color:var(--navy);margin-top:18px;">解いた問題数バッジ</h3>
-     ${renderBadgeGrid(totalAnswered, COUNT_BADGES, "問")}`;
-
-  const byDate = {};
-  logs.forEach(l=>{
-    byDate[l.date] = byDate[l.date] || {total:0, correct:0};
-    byDate[l.date].total++;
-    if(l.correct) byDate[l.date].correct++;
-  });
-  const days = Object.keys(byDate).sort().slice(-14); // 直近14日分(記録がある日のみ)
-  const wrap = document.getElementById("myProgressChart");
-  if(days.length===0){
-    wrap.innerHTML = `<p class="center-note">まだ学習記録がありません。</p>`;
-  } else {
-    wrap.innerHTML = `<div style="display:flex;align-items:flex-end;gap:6px;height:140px;border-bottom:1px solid var(--line);padding-bottom:4px;">` +
-      days.map(d=>{
-        const t = byDate[d];
-        const rate = Math.round(t.correct/t.total*100);
-        return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;">
-          <div style="font-size:10px;color:#888;margin-bottom:2px;">${rate}%</div>
-          <div style="width:100%;background:var(--gold);border-radius:3px 3px 0 0;height:${Math.max(rate,4)}%;"></div>
-        </div>`;
-      }).join("") + `</div>` +
-      `<div style="display:flex;gap:6px;margin-top:4px;">` +
-      days.map(d=>`<div style="flex:1;text-align:center;font-size:10px;color:#888;">${d.slice(5)}</div>`).join("") +
-      `</div>`;
-  }
-  showScreen("screen-my-progress");
-}
-
-window.toggleFavorite = async function(){
-  const q = quizQueue[quizIndex];
-  if(!q || !q.id || !currentStudent) return;
-  const isFav = !!MY_FAVORITES[q.id];
-  const btn = document.getElementById("favBtn");
-  if(isFav){
-    delete MY_FAVORITES[q.id];
-    await remove(ref(db, "favorites/"+currentStudent.id+"/"+q.id));
-    btn.textContent = "☆"; btn.style.color = "#ccc";
-  } else {
-    MY_FAVORITES[q.id] = true;
-    await set(ref(db, "favorites/"+currentStudent.id+"/"+q.id), true);
-    btn.textContent = "★"; btn.style.color = "var(--gold)";
-  }
-}
-
-window.startReviewMode = function(){
-  const logs = answersOfStudent(currentStudent.id).filter(l=>l.questionId);
-  const latestByQuestion = {};
-  logs.forEach(l=>{
-    if(!latestByQuestion[l.questionId] || (l.timestamp||0) > (latestByQuestion[l.questionId].timestamp||0)){
-      latestByQuestion[l.questionId] = l;
-    }
-  });
-  const wrongIds = Object.keys(latestByQuestion).filter(qid=> !latestByQuestion[qid].correct);
-  const pool = wrongIds.map(qid=> ALL_QUESTIONS[qid] ? {id:qid, ...ALL_QUESTIONS[qid]} : null).filter(Boolean);
-  if(pool.length===0){
-    alert("直しが必要な問題が見つかりませんでした(まだ何も間違えていないか、間違えた問題がすでに解き直されています)。");
-    return;
-  }
-  quizQueue = shuffle(pool);
-  quizMode = "review";
-  quizIndex = 0;
-  quizResults = [];
-  showScreen("screen-quiz");
-  renderQuestion();
-}
-
-window.startFavoriteMode = function(){
-  const ids = Object.keys(MY_FAVORITES);
-  const pool = ids.map(qid=> ALL_QUESTIONS[qid] ? {id:qid, ...ALL_QUESTIONS[qid]} : null).filter(Boolean);
-  if(pool.length===0){
-    alert("お気に入りに登録された問題がまだありません。問題を解いているときに☆をタップすると登録できます。");
-    return;
-  }
-  quizQueue = shuffle(pool);
-  quizMode = "favorite";
-  quizIndex = 0;
-  quizResults = [];
-  showScreen("screen-quiz");
-  renderQuestion();
-}
-
-/* ===================== 学生ログイン ===================== */
-window.tryAutofill = function(){
-  const id = document.getElementById("stuId").value.trim();
-  const note = document.getElementById("autofillNote");
-  if(ALL_STUDENTS[id]){
-    document.getElementById("stuLast").value = ALL_STUDENTS[id].last;
-    document.getElementById("stuFirst").value = ALL_STUDENTS[id].first;
-    if(ALL_STUDENTS[id].enrollYear) document.getElementById("stuEnrollYear").value = ALL_STUDENTS[id].enrollYear;
-    note.textContent = "登録済みの学籍番号です。氏名を自動入力しました。";
-  } else {
-    // 新規の学生:学籍番号の先頭4桁を入学年度として自動推定する
-    const m = id.match(/^(\d{4})/);
-    if(m){
-      const y = m[1];
-      const sel = document.getElementById("stuEnrollYear");
-      const hasOption = Array.from(sel.options).some(o=>o.value===y);
-      if(hasOption){
-        sel.value = y;
-        note.textContent = `学籍番号から入学年度を ${y}年度 と自動判定しました(違う場合は下の欄で選び直せます)。`;
-      } else {
-        note.textContent = "";
-      }
-    } else {
-      note.textContent = "";
-    }
-  }
-}
-
-window.studentLogin = async function(){
-  const id = document.getElementById("stuId").value.trim();
-  const last = document.getElementById("stuLast").value.trim();
-  const first = document.getElementById("stuFirst").value.trim();
-  const enrollYear = parseInt(document.getElementById("stuEnrollYear").value);
-  if(!id || !last || !first){ alert("学籍番号・姓・名をすべて入力してください。"); return; }
-  await set(ref(db, "students/"+id), {last, first, enrollYear});
-  ALL_STUDENTS[id] = {last, first, enrollYear};
-  currentStudent = {id, last, first, enrollYear};
-  document.getElementById("stuGreeting").textContent = last + " " + first;
-  renderSubjectList();
-  await refreshStreakAndFavorites();
-  showScreen("screen-mode-select");
-}
-
-window.loginAsDemo = async function(){
-  document.getElementById("stuId").value = DEMO_STUDENT_ID;
-  document.getElementById("stuLast").value = "デモ";
-  document.getElementById("stuFirst").value = "学生";
-  await studentLogin();
-}
-
-function subjectStats(subject){
-  const logs = answersOfStudent(currentStudent.id).filter(l=>l.subject===subject);
-  const total = logs.length;
-  const correct = logs.filter(l=>l.correct).length;
-  return {total, correct, rate: total? Math.round(correct/total*100): null};
-}
-
-function quizLenFor(subject){
-  return QUIZ_LENGTHS[subject] || DEFAULT_QUIZ_LENGTH;
-}
-
-function renderSubjectList(){
-  const wrap = document.getElementById("subjectList");
-  wrap.innerHTML = "";
-  SUBJECTS.forEach(subject=>{
-    const pool = questionsOf(subject);
-    const stats = subjectStats(subject);
-    const outCount = Math.min(quizLenFor(subject), pool.length);
-    const div = document.createElement("div");
-    div.className = "subject-item";
-    div.onclick = ()=> pool.length>0 ? openQuizSetup(subject) : alert("この科目にはまだ過去問が登録されていません。");
-    div.innerHTML = `
-      <div>
-        <div class="s-name">${subject}</div>
-        <div class="s-meta">登録${pool.length}問中 ${outCount>0? outCount+"問をランダム出題":"未登録"}${stats.total? ` ・ これまで${stats.total}問回答`:""}</div>
+    <div class="card">
+      <h3>個別回答一覧</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>日時</th><th>回答者</th><th>Q1</th><th>Q2</th><th>Q3</th><th>Q4</th><th>懸念点</th><th>改善提案</th><th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="responseTable"></tbody>
+        </table>
       </div>
-      <div class="s-rate ${stats.rate!==null && stats.rate<50 ? 'weak':''}">${stats.rate!==null? stats.rate+"%" : (pool.length>0? "未挑戦":"—")}</div>
-    `;
-    wrap.appendChild(div);
+    </div>
+    <div class="footer-link"><a href="#" onclick="showForm();return false;">回答フォームに戻る</a></div>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   ▼▼▼ ここを自分のFirebaseプロジェクトの値に書き換えてください ▼▼▼
+   Firebaseコンソール > プロジェクト設定 > 全般 > マイアプリ の
+   「SDK の設定と構成」に表示される値をコピーしてください。
+   ========================================================= */
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  databaseURL: "https://YOUR_PROJECT-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "YOUR_PROJECT",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
+};
+
+// 管理者用PIN（必要に応じて変更してください）
+const ADMIN_PIN = "1234";
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+/* ---------- 選択肢定義 ---------- */
+const CHOICES = {
+  q1: ["賛成", "条件付き賛成", "反対", "わからない・判断保留"],
+  q2: ["適切だと思う", "やや不安がある", "見直しが必要", "わからない"],
+  q3: ["適切だと思う", "やや不安がある", "見直しが必要", "わからない"],
+  q4: ["適切だと思う", "負担が大きいのでは", "その他の役割も検討すべき", "わからない"]
+};
+
+let mode = "named";
+
+function renderChoices() {
+  Object.keys(CHOICES).forEach(qid => {
+    const container = document.getElementById(qid);
+    container.className = "choices";
+    container.innerHTML = CHOICES[qid].map((label, i) => `
+      <label>
+        <input type="radio" name="${qid}" value="${label}">${label}
+      </label>
+    `).join("");
   });
 }
+renderChoices();
 
-/* ===================== 出題数の選択 ===================== */
-let setupSubject = null;
-let selectedQuizCount = null;
-
-function openQuizSetup(subject){
-  setupSubject = subject;
-  const pool = questionsOf(subject);
-  const defaultCount = Math.min(quizLenFor(subject), pool.length);
-  selectedQuizCount = defaultCount;
-
-  document.getElementById("setupSubjectName").textContent = subject;
-  document.getElementById("setupSubjectMeta").textContent = `登録されている過去問: ${pool.length}問`;
-
-  let candidates = [...new Set([1,3,5,10,15,20].filter(n=> n<=pool.length))];
-  if(candidates.length===0) candidates = [pool.length]; // 登録数がとても少ない科目向けの保険
-  candidates.sort((a,b)=>a-b);
-  // 教員設定の基本出題数に一番近いボタンを初期選択にする
-  selectedQuizCount = candidates.reduce((closest,n)=>
-    Math.abs(n-defaultCount) < Math.abs(closest-defaultCount) ? n : closest, candidates[0]);
-  const wrap = document.getElementById("quizCountButtons");
-  wrap.innerHTML = candidates.map(n=>{
-    const label = (n===pool.length) ? `全部(${n}問)` : `${n}問`;
-    return `<button type="button" class="count-btn ${n===selectedQuizCount?'active':''}" data-count="${n}" onclick="pickQuizCount(${n})">${label}</button>`;
-  }).join("");
-
-  showScreen("screen-quiz-setup");
-}
-window.openQuizSetup = openQuizSetup;
-
-window.pickQuizCount = function(n){
-  selectedQuizCount = n;
-  document.querySelectorAll("#quizCountButtons .count-btn").forEach(btn=>{
-    btn.classList.toggle("active", parseInt(btn.dataset.count) === n);
-  });
+function setMode(m) {
+  mode = m;
+  document.getElementById('btnNamed').classList.toggle('active', m === 'named');
+  document.getElementById('btnAnon').classList.toggle('active', m === 'anon');
+  document.getElementById('nameField').style.display = (m === 'named') ? 'block' : 'none';
 }
 
-window.startQuizWithCount = function(){
-  startQuiz(setupSubject, selectedQuizCount);
+function getSelected(qid) {
+  const el = document.querySelector(`input[name="${qid}"]:checked`);
+  return el ? el.value : "";
 }
 
-/* ===================== 模擬試験モード ===================== */
-function openExamSetup(){
-  const rounds = availableRounds();
-  const wrap = document.getElementById("examRoundList");
-  if(rounds.length===0){
-    wrap.innerHTML = `<p class="center-note">実施回が登録された過去問がまだありません。</p>`;
+function submitResponse() {
+  const q1 = getSelected('q1'), q2 = getSelected('q2'), q3 = getSelected('q3'), q4 = getSelected('q4');
+  if (!q1 || !q2 || !q3 || !q4) {
+    alert("Q1〜Q4はすべて選択してください。");
+    return;
+  }
+  let name = "";
+  if (mode === "named") {
+    name = document.getElementById('respName').value.trim();
+    if (!name) {
+      alert("記名を選択した場合はお名前をご入力ください。");
+      return;
+    }
+  }
+
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  btn.textContent = "送信中...";
+
+  const data = {
+    anonymous: mode === "anon",
+    name: mode === "anon" ? "（匿名）" : name,
+    q1, q2, q3, q4,
+    q5free: document.getElementById('q5free').value.trim(),
+    q6free: document.getElementById('q6free').value.trim(),
+    timestamp: Date.now(),
+    timestampStr: new Date().toLocaleString('ja-JP')
+  };
+
+  db.ref('responses').push(data)
+    .then(() => {
+      document.getElementById('formView').classList.add('hidden');
+      document.getElementById('thanks').classList.remove('hidden');
+    })
+    .catch(err => {
+      alert("送信に失敗しました。通信環境をご確認のうえ、再度お試しください。\n" + err.message);
+      btn.disabled = false;
+      btn.textContent = "回答を送信する";
+    });
+}
+
+/* ---------- 画面切り替え ---------- */
+function showForm() {
+  document.getElementById('formView').classList.remove('hidden');
+  document.getElementById('adminLogin').classList.add('hidden');
+  document.getElementById('adminView').classList.add('hidden');
+  document.getElementById('thanks').classList.add('hidden');
+}
+function showAdminLogin() {
+  document.getElementById('formView').classList.add('hidden');
+  document.getElementById('adminLogin').classList.remove('hidden');
+}
+function checkAdminPin() {
+  const pin = document.getElementById('adminPin').value;
+  if (pin === ADMIN_PIN) {
+    document.getElementById('adminLogin').classList.add('hidden');
+    document.getElementById('adminView').classList.remove('hidden');
+    loadAdminData();
   } else {
-    wrap.innerHTML = rounds.map(round=>{
-      const count = questionsOfRound(round).length;
+    alert("PINが正しくありません。");
+  }
+}
+
+/* ---------- 管理画面 ---------- */
+let allResponses = [];
+
+function loadAdminData() {
+  db.ref('responses').on('value', snapshot => {
+    allResponses = [];
+    snapshot.forEach(child => {
+      allResponses.push({ id: child.key, ...child.val() });
+    });
+    allResponses.sort((a, b) => b.timestamp - a.timestamp);
+    renderAdmin();
+  });
+}
+
+function renderAdmin() {
+  document.getElementById('totalCount').textContent = allResponses.length;
+
+  ['q1','q2','q3','q4'].forEach(qid => {
+    const counts = {};
+    CHOICES[qid].forEach(c => counts[c] = 0);
+    allResponses.forEach(r => { if (r[qid] && counts[r[qid]] !== undefined) counts[r[qid]]++; });
+    const total = allResponses.length || 1;
+    const el = document.getElementById('stat_' + qid);
+    el.innerHTML = CHOICES[qid].map(c => {
+      const pct = Math.round((counts[c] / total) * 100);
       return `
-        <div class="subject-item" onclick="startExamMode('${round}')">
-          <div><div class="s-name">${round}</div><div class="s-meta">${count}問</div></div>
-          <div class="s-rate">開始</div>
+        <div class="stat-bar-row">
+          <div class="stat-label">${c}</div>
+          <div class="stat-bar-bg"><div class="stat-bar-fill" style="width:${pct}%"></div></div>
+          <div class="stat-count">${counts[c]}</div>
         </div>
       `;
     }).join("");
-  }
-  showScreen("screen-exam-setup");
-}
-window.openExamSetup = openExamSetup;
-
-window.startExamMode = function(round){
-  quizQueue = questionsOfRound(round);
-  quizMode = "exam";
-  currentExamRound = round;
-  currentExamSessionId = String(Date.now());
-  quizIndex = 0;
-  quizResults = [];
-  showScreen("screen-quiz");
-  renderQuestion();
-}
-
-/* ===================== 出題 ===================== */
-let quizMode = "random"; // "random"(科目別ランダム) or "exam"(模擬試験)
-let currentExamRound = null;
-let currentExamSessionId = null;
-
-window.quizBackToSelect = function(){
-  if(quizMode === "exam") showScreen("screen-exam-setup");
-  else if(quizMode === "review" || quizMode === "favorite") showScreen("screen-mode-select");
-  else showScreen("screen-subject-select");
-}
-
-window.startQuiz = function(subject, count){
-  const pool = questionsOf(subject);
-  const n = count || Math.min(quizLenFor(subject), pool.length);
-  quizQueue = shuffle(pool).slice(0, n);
-  quizMode = "random";
-  quizIndex = 0;
-  quizResults = [];
-  showScreen("screen-quiz");
-  renderQuestion();
-}
-
-let selectedChoices = [];
-let currentChoiceOrder = []; // 表示位置(0始まり) -> 元の選択肢インデックス(0始まり)
-
-function renderQuestion(){
-  const q = quizQueue[quizIndex];
-  const answers = q.answers || (q.answer ? [q.answer] : []); // 旧データ(単一answer)にも対応
-  selectedChoices = [];
-  document.getElementById("quizCounter").textContent = `${quizIndex+1} / ${quizQueue.length}問`;
-  document.getElementById("quizTag").textContent = (q.tags || (q.tag?[q.tag]:[])).join("・");
-  const roundBadge = document.getElementById("quizRoundBadge");
-  if(q.round || q.number){
-    roundBadge.style.display = "inline-block";
-    roundBadge.textContent = [q.round, q.number].filter(Boolean).join(" ");
-  } else {
-    roundBadge.style.display = "none";
-  }
-  document.getElementById("quizText").textContent = q.text + (answers.length>1 ? `(${answers.length}つ選んでください)` : "");
-  document.getElementById("quizProgressBar").style.width = Math.round((quizIndex)/quizQueue.length*100)+"%";
-  const favBtn = document.getElementById("favBtn");
-  if(q.id && MY_FAVORITES[q.id]){ favBtn.textContent = "★"; favBtn.style.color = "var(--gold)"; }
-  else { favBtn.textContent = "☆"; favBtn.style.color = "#ccc"; }
-  const wrap = document.getElementById("choicesWrap");
-  wrap.innerHTML = "";
-  currentChoiceOrder = shuffle(q.choices.map((c,i)=>i)); // 選択肢の並びを毎回シャッフル
-  currentChoiceOrder.forEach((origIdx, pos)=>{
-    const c = q.choices[origIdx];
-    const div = document.createElement("div");
-    div.className = "choice";
-    div.dataset.orig = origIdx + 1;
-    div.innerHTML = `<div class="num">${pos+1}</div><div style="flex:1"><div class="c-text">${c.text}</div><div class="c-explain" style="display:none"></div></div>`;
-    div.onclick = ()=> onChoiceClick(origIdx + 1);
-    wrap.appendChild(div);
   });
-  document.getElementById("feedbackWrap").innerHTML = "";
-  document.getElementById("nextBtn").style.display = "none";
 
-  const confirmBtn = document.getElementById("confirmAnswerBtn");
-  if(answers.length > 1){
-    confirmBtn.style.display = "block";
-    confirmBtn.disabled = true;
-  } else {
-    confirmBtn.style.display = "none";
-  }
+  const tbody = document.getElementById('responseTable');
+  tbody.innerHTML = allResponses.map(r => `
+    <tr>
+      <td>${r.timestampStr || ''}</td>
+      <td>${r.anonymous ? '<span class="tag anon">匿名</span>' : `<span class="tag named">記名</span> ${escapeHtml(r.name)}`}</td>
+      <td>${escapeHtml(r.q1)}</td>
+      <td>${escapeHtml(r.q2)}</td>
+      <td>${escapeHtml(r.q3)}</td>
+      <td>${escapeHtml(r.q4)}</td>
+      <td>${escapeHtml(r.q5free)}</td>
+      <td>${escapeHtml(r.q6free)}</td>
+      <td><button class="delete-btn" onclick="deleteResponse('${r.id}')">削除</button></td>
+    </tr>
+  `).join("");
 }
 
-function onChoiceClick(choiceNum){
-  const q = quizQueue[quizIndex];
-  const answers = q.answers || (q.answer ? [q.answer] : []);
-  if(answers.length > 1){
-    // 複数選択モード:トグルして確定ボタンを押すまで採点しない
-    const div = document.querySelector(`#choicesWrap .choice[data-orig="${choiceNum}"]`);
-    const idx = selectedChoices.indexOf(choiceNum);
-    if(idx === -1){ selectedChoices.push(choiceNum); div.classList.add("selected-multi"); }
-    else { selectedChoices.splice(idx,1); div.classList.remove("selected-multi"); }
-    document.getElementById("confirmAnswerBtn").disabled = selectedChoices.length===0;
-  } else {
-    finalizeAnswer([choiceNum]);
-  }
-}
-window.onChoiceClick = onChoiceClick;
-
-window.confirmMultiAnswer = function(){
-  finalizeAnswer(selectedChoices);
+function deleteResponse(id) {
+  if (!confirm("この回答を削除します。よろしいですか？（元に戻せません）")) return;
+  db.ref('responses/' + id).remove()
+    .catch(err => alert("削除に失敗しました。\n" + err.message));
 }
 
-async function finalizeAnswer(chosenArr){
-  const q = quizQueue[quizIndex];
-  const answers = (q.answers || (q.answer ? [q.answer] : [])).slice().sort((a,b)=>a-b);
-  const chosen = chosenArr.slice().sort((a,b)=>a-b);
-  const correct = JSON.stringify(chosen) === JSON.stringify(answers);
-
-  const choiceDivs = document.querySelectorAll("#choicesWrap .choice");
-  choiceDivs.forEach(div=>{
-    const origNum = parseInt(div.dataset.orig);
-    div.onclick = null;
-    div.classList.remove("selected-multi");
-    const isCorrectChoice = answers.includes(origNum);
-    const wasChosen = chosen.includes(origNum);
-    if(isCorrectChoice) div.classList.add("correct");
-    if(wasChosen && !isCorrectChoice) div.classList.add("wrong");
-    const exp = div.querySelector(".c-explain");
-    if(q.choices[origNum-1].explain){
-      exp.style.display = "block";
-      exp.textContent = (isCorrectChoice ? "○ " : "✕ ") + q.choices[origNum-1].explain;
-    }
-  });
-  document.getElementById("confirmAnswerBtn").style.display = "none";
-  // 正解番号は、今回表示されている位置の番号に変換してから伝える
-  const answersDisplayPos = answers.map(a=> currentChoiceOrder.indexOf(a-1)+1).sort((a,b)=>a-b);
-  document.getElementById("feedbackWrap").innerHTML =
-    `<div class="feedback ${correct?'ok':'ng'}">${correct? "正解です。" : "不正解です。正解は "+answersDisplayPos.join("、")+" です。"}</div>`;
-  document.getElementById("nextBtn").style.display = "block";
-  const qTags = q.tags || (q.tag ? [q.tag] : []);
-  quizResults.push({subject:q.subject, tags:qTags, correct});
-
-  const record = {studentId:currentStudent.id, questionId:q.id, subject:q.subject, tags:qTags, correct, date:todayStr(), timestamp:Date.now(), mode:quizMode};
-  if(quizMode === "exam"){
-    record.examRound = currentExamRound;
-    record.examSessionId = currentExamSessionId;
-  }
-  const newRef = push(ref(db, "answers"));
-  await set(newRef, record);
-  ALL_ANSWERS[newRef.key] = record;
+function escapeHtml(str) {
+  if (!str) return "";
+  return String(str).replace(/[&<>"']/g, m => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[m]));
 }
 
-window.nextQuestion = function(){
-  quizIndex++;
-  if(quizIndex >= quizQueue.length){ showResult(); } else { renderQuestion(); }
-}
+function exportCSV() {
+  const header = ["日時","回答者区分","氏名","Q1","Q2","Q3","Q4","懸念点","改善提案"];
+  const rows = allResponses.map(r => [
+    r.timestampStr || '',
+    r.anonymous ? '匿名' : '記名',
+    r.anonymous ? '' : r.name,
+    r.q1, r.q2, r.q3, r.q4,
+    (r.q5free || '').replace(/\n/g, ' '),
+    (r.q6free || '').replace(/\n/g, ' ')
+  ]);
+  const csvContent = [header, ...rows].map(row =>
+    row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",")
+  ).join("\n");
 
-function showResult(){
-  const total = quizResults.length;
-  const correct = quizResults.filter(r=>r.correct).length;
-  document.getElementById("resultSummary").innerHTML =
-    `<p style="font-size:15px;">今回の正答: <strong style="color:var(--navy);font-size:20px;">${correct} / ${total}</strong>問</p>`;
-
-  const subjectWrap = document.getElementById("resultSubjectWrap");
-  if(quizMode === "exam"){
-    const bySubject = {};
-    quizResults.forEach(r=>{
-      bySubject[r.subject] = bySubject[r.subject] || {total:0, correct:0};
-      bySubject[r.subject].total++;
-      if(r.correct) bySubject[r.subject].correct++;
-    });
-    let subRows = `<tr><th>科目</th><th>正答率</th></tr>`;
-    Object.keys(bySubject).forEach(sub=>{
-      const t = bySubject[sub];
-      subRows += `<tr><td>${sub}</td><td>${t.correct}/${t.total}(${Math.round(t.correct/t.total*100)}%)</td></tr>`;
-    });
-    document.getElementById("resultSubjectTable").innerHTML = subRows;
-    subjectWrap.style.display = "block";
-  } else {
-    subjectWrap.style.display = "none";
-  }
-
-  const byTag = {};
-  quizResults.forEach(r=>{
-    (r.tags || (r.tag?[r.tag]:[])).forEach(tag=>{
-      byTag[tag] = byTag[tag] || {total:0, correct:0};
-      byTag[tag].total++;
-      if(r.correct) byTag[tag].correct++;
-    });
-  });
-  let rows = `<tr><th>分野タグ</th><th>正答率</th></tr>`;
-  Object.keys(byTag).forEach(tag=>{
-    const t = byTag[tag];
-    rows += `<tr><td>${tag}</td><td>${t.correct}/${t.total}(${Math.round(t.correct/t.total*100)}%)</td></tr>`;
-  });
-  document.getElementById("resultTagTable").innerHTML = rows;
-  renderSubjectList();
-  showScreen("screen-result");
-}
-
-/* ===================== 教員ログイン ===================== */
-window.teacherLogin = function(){
-  const pin = document.getElementById("teacherPin").value;
-  if(pin !== TEACHER_PIN){ alert("PINが違います。"); return; }
-  populateSubjectSelects();
-  renderRegisteredQuestions();
-  switchTeacherTab('q');
-  showScreen("screen-teacher-dash");
-}
-
-function populateSubjectSelects(){
-  const opts = SUBJECTS.map(s=>`<option value="${s}">${s}</option>`).join("");
-  document.getElementById("qSubject").innerHTML = opts;
-  document.getElementById("qFilterSubject").innerHTML = `<option value="">すべての科目</option>` + opts;
-  document.getElementById("qSubjectLen").value = quizLenFor(document.getElementById("qSubject").value);
-  populateTagChecks();
-}
-
-function populateTagChecks(checkedTags){
-  checkedTags = checkedTags || [];
-  const subject = document.getElementById("qSubject").value;
-  const tags = tagsOf(subject);
-  const wrap = document.getElementById("qTagChecks");
-  wrap.innerHTML = tags.map((t,idx)=>{
-    const isChecked = checkedTags.includes(t);
-    return `<span class="tag-check ${isChecked?'checked':''}" style="padding-right:4px;">
-      <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;">
-        <input type="checkbox" class="qTagChk" value="${t}" ${isChecked?'checked':''} onchange="this.closest('.tag-check').classList.toggle('checked', this.checked)">${t}
-      </label>
-      <button type="button" onclick="event.stopPropagation(); renameTagAt(${idx})" style="border:none;background:none;cursor:pointer;color:#999;font-size:12px;padding:0 2px;" title="タグ名を修正する">✎</button>
-      <button type="button" onclick="event.stopPropagation(); deleteTagAt(${idx})" style="border:none;background:none;cursor:pointer;color:#999;font-size:12px;padding:0 2px;" title="このタグを一覧から削除する">×</button>
-    </span>`;
-  }).join("");
-}
-
-window.renameTagAt = async function(idx){
-  const subject = document.getElementById("qSubject").value;
-  const tags = tagsOf(subject);
-  const oldTag = tags[idx];
-  const newTag = prompt("修正後のタグ名を入力してください。", oldTag);
-  if(newTag===null) return; // キャンセル
-  const trimmed = newTag.trim();
-  if(!trimmed || trimmed === oldTag) return;
-
-  const currentlyChecked = Array.from(document.querySelectorAll(".qTagChk:checked")).map(c=>c.value);
-
-  // タグ一覧を更新(同名が既にある場合は重複を作らず統合する)
-  let list = SUBJECT_TAGS[subject] || [];
-  if(list.includes(trimmed)){
-    list = list.filter(t=>t!==oldTag);
-  } else {
-    list = list.map(t=> t===oldTag ? trimmed : t);
-  }
-  SUBJECT_TAGS[subject] = list;
-  await set(ref(db, "subjectTags/"+subject), list);
-
-  // この科目で、このタグを使っている過去問すべてに反映する
-  const updates = [];
-  Object.entries(ALL_QUESTIONS).forEach(([id,q])=>{
-    if(q.subject===subject && Array.isArray(q.tags) && q.tags.includes(oldTag)){
-      const newTags = [...new Set(q.tags.map(t=> t===oldTag ? trimmed : t))];
-      updates.push(set(ref(db, "questions/"+id+"/tags"), newTags).then(()=>{ q.tags = newTags; }));
-    }
-  });
-  if(updates.length>0) await Promise.all(updates);
-
-  const newChecked = currentlyChecked.map(t=> t===oldTag ? trimmed : t);
-  populateTagChecks(newChecked);
-  renderRegisteredQuestions();
-  alert(`「${oldTag}」を「${trimmed}」に修正しました。${updates.length>0? `(この科目の過去問${updates.length}件にも反映しました)`:""}`);
-}
-
-window.deleteTagAt = async function(idx){
-  const subject = document.getElementById("qSubject").value;
-  const tags = tagsOf(subject);
-  const tag = tags[idx];
-  if(!confirm(`「${tag}」をタグ一覧から削除しますか？(すでにこのタグが付いている過去問からは削除されません。一覧から選べなくなるだけです)`)) return;
-  const currentlyChecked = Array.from(document.querySelectorAll(".qTagChk:checked")).map(c=>c.value).filter(t=>t!==tag);
-  SUBJECT_TAGS[subject] = (SUBJECT_TAGS[subject]||[]).filter(t=>t!==tag);
-  await set(ref(db, "subjectTags/"+subject), SUBJECT_TAGS[subject]);
-  populateTagChecks(currentlyChecked);
-}
-
-window.confirmNewTag = async function(){
-  const subject = document.getElementById("qSubject").value;
-  const newTag = document.getElementById("qTagNew").value.trim();
-  if(!newTag){ alert("タグ名を入力してください。"); return; }
-  if(!SUBJECT_TAGS[subject]) SUBJECT_TAGS[subject] = [];
-  if(!SUBJECT_TAGS[subject].includes(newTag)){
-    SUBJECT_TAGS[subject].push(newTag);
-    await set(ref(db, "subjectTags/"+subject), SUBJECT_TAGS[subject]);
-  }
-  const currentlyChecked = Array.from(document.querySelectorAll(".qTagChk:checked")).map(c=>c.value);
-  currentlyChecked.push(newTag);
-  populateTagChecks(currentlyChecked);
-  document.getElementById("qTagNew").value = "";
-}
-document.addEventListener("change", (e)=>{
-  if(e.target && e.target.id === "qSubject"){
-    document.getElementById("qSubjectLen").value = quizLenFor(e.target.value);
-    populateTagChecks();
-  }
-});
-
-window.saveQuizLength = async function(){
-  const subject = document.getElementById("qSubject").value;
-  const val = parseInt(document.getElementById("qSubjectLen").value) || DEFAULT_QUIZ_LENGTH;
-  QUIZ_LENGTHS[subject] = val;
-  await set(ref(db, "quizLengths/"+subject), val);
-}
-
-window.switchTeacherTab = function(tab){
-  document.getElementById("teacherTabQ").style.display = tab==='q' ? 'block':'none';
-  document.getElementById("teacherTabS").style.display = tab==='s' ? 'block':'none';
-  document.getElementById("tabBtnQ").classList.toggle("active", tab==='q');
-  document.getElementById("tabBtnS").classList.toggle("active", tab==='s');
-  if(tab==='s') renderStudentList();
-}
-
-/* ===================== 教員: 過去問登録・編集 ===================== */
-let editingId = null;
-
-window.addQuestion = async function(){
-  const btn = document.getElementById("addQBtn");
-  const subject = document.getElementById("qSubject").value;
-  const tags = Array.from(document.querySelectorAll(".qTagChk:checked")).map(c=>c.value);
-  const round = document.getElementById("qRound").value.trim();
-  const number = document.getElementById("qNumber").value.trim();
-  const text = document.getElementById("qText").value.trim();
-  const choices = [1,2,3,4,5].map(n=>({
-    text: document.getElementById("qC"+n).value.trim(),
-    explain: document.getElementById("qE"+n).value.trim()
-  }));
-  const answers = Array.from(document.querySelectorAll(".qAns:checked")).map(c=>parseInt(c.value)).sort((a,b)=>a-b);
-
-  if(tags.length===0 || !text || choices.some(c=>!c.text) || answers.length===0){
-    alert("分野タグ(1つ以上)・問題文・選択肢5つ・正解(1つ以上)をすべて入力してください。(解説は空欄でも登録できます)");
-    return;
-  }
-
-  if(editingId){
-    btn.disabled = true; btn.textContent = "更新中...";
-    const prev = ALL_QUESTIONS[editingId] || {};
-    const record = {subject, tags, round, number, text, choices, answers, createdAt: prev.createdAt || Date.now()};
-    await set(ref(db, "questions/"+editingId), record);
-    ALL_QUESTIONS[editingId] = record;
-    cancelEdit();
-  } else {
-    btn.disabled = true; btn.textContent = "登録中...";
-    const record = {subject, tags, round, number, text, choices, answers, createdAt: Date.now()};
-    const newRef = push(ref(db, "questions"));
-    await set(newRef, record);
-    ALL_QUESTIONS[newRef.key] = record;
-    ["qRound","qNumber","qText","qC1","qE1","qC2","qE2","qC3","qE3","qC4","qE4","qC5","qE5"].forEach(id=>document.getElementById(id).value="");
-    document.querySelectorAll(".qAns:checked").forEach(c=>c.checked=false);
-    populateTagChecks();
-  }
-
-  renderRegisteredQuestions();
-  btn.disabled = false;
-  btn.textContent = editingId ? "この内容で更新する" : "この過去問を登録する";
-}
-
-window.editQuestion = function(id){
-  const q = ALL_QUESTIONS[id];
-  if(!q) return;
-  editingId = id;
-  document.getElementById("qSubject").value = q.subject;
-  const tags = q.tags || (q.tag ? [q.tag] : []);
-  populateTagChecks(tags);
-  document.getElementById("qSubjectLen").value = quizLenFor(q.subject);
-  document.getElementById("qRound").value = q.round || "";
-  document.getElementById("qNumber").value = q.number || "";
-  document.getElementById("qText").value = q.text;
-  [1,2,3,4,5].forEach(n=>{
-    document.getElementById("qC"+n).value = q.choices[n-1] ? q.choices[n-1].text : "";
-    document.getElementById("qE"+n).value = q.choices[n-1] ? q.choices[n-1].explain : "";
-  });
-  const answers = q.answers || (q.answer ? [q.answer] : []);
-  document.querySelectorAll(".qAns").forEach(c=>{ c.checked = answers.includes(parseInt(c.value)); });
-
-  document.getElementById("addQBtn").textContent = "この内容で更新する";
-  document.getElementById("cancelEditBtn").style.display = "block";
-  document.getElementById("editingNotice").style.display = "block";
-  window.scrollTo(0,0);
-}
-
-window.cancelEdit = function cancelEdit(){
-  editingId = null;
-  document.getElementById("addQBtn").textContent = "この過去問を登録する";
-  document.getElementById("cancelEditBtn").style.display = "none";
-  document.getElementById("editingNotice").style.display = "none";
-  ["qRound","qNumber","qText","qC1","qE1","qC2","qE2","qC3","qE3","qC4","qE4","qC5","qE5"].forEach(id=>document.getElementById(id).value="");
-  document.querySelectorAll(".qAns:checked").forEach(c=>c.checked=false);
-  populateTagChecks();
-}
-
-window.deleteQuestion = async function(id){
-  if(!confirm("この過去問を削除しますか？")) return;
-  await remove(ref(db, "questions/"+id));
-  delete ALL_QUESTIONS[id];
-  if(editingId === id) cancelEdit();
-  renderRegisteredQuestions();
-}
-
-function renderRegisteredQuestions(){
-  const filterSubject = document.getElementById("qFilterSubject").value;
-  const filterRound = document.getElementById("qFilterRound").value;
-  const wrap = document.getElementById("registeredQList");
-
-  // 実施回フィルタの選択肢を更新(既存の選択は維持)
-  const roundSel = document.getElementById("qFilterRound");
-  const rounds = [...new Set(Object.values(ALL_QUESTIONS).map(q=>q.round).filter(Boolean))].sort();
-  const prevRoundVal = roundSel.value;
-  roundSel.innerHTML = `<option value="">すべての実施回</option>` + rounds.map(r=>`<option value="${r}">${r}</option>`).join("");
-  roundSel.value = rounds.includes(prevRoundVal) ? prevRoundVal : "";
-
-  const entries = Object.entries(ALL_QUESTIONS)
-    .filter(([id,q])=> (!filterSubject || q.subject===filterSubject) && (!filterRound || q.round===filterRound))
-    .sort((a,b)=> (b[1].createdAt||0) - (a[1].createdAt||0));
-  document.getElementById("qCountLabel").textContent = `(全${Object.keys(ALL_QUESTIONS).length}問)`;
-  wrap.innerHTML = "";
-  if(entries.length===0){
-    wrap.innerHTML = `<p class="center-note">登録済みの過去問はありません。</p>`;
-    return;
-  }
-  entries.forEach(([id,q])=>{
-    const div = document.createElement("div");
-    div.className = "qcard";
-    const roundLabel = (q.round || q.number) ? `<span class="qtag" style="margin-left:6px;">${[q.round,q.number].filter(Boolean).join(" ")}</span>` : "";
-    div.innerHTML = `
-      <button class="del" style="right:66px;color:var(--navy);" onclick="editQuestion('${id}')">編集</button>
-      <button class="del" onclick="deleteQuestion('${id}')">削除</button>
-      <div class="s-name">${q.text.slice(0,32)}${q.text.length>32?"…":""}</div>
-      <div class="s-meta">${q.subject} / ${(q.tags || (q.tag?[q.tag]:[])).join("・")}${roundLabel}</div>
-    `;
-    wrap.appendChild(div);
-  });
-}
-window.renderRegisteredQuestions = renderRegisteredQuestions;
-
-/* ===================== 教員: 学生進捗 ===================== */
-function renderStudentList(){
-  const wrap = document.getElementById("studentListWrap");
-  const gradeFilter = document.getElementById("studentFilterGrade").value;
-  const gradeOf = (s)=> s.enrollYear ? gradeLabelFromEnrollYear(s.enrollYear) : (s.grade || "");
-  const ids = Object.keys(ALL_STUDENTS)
-    .filter(id=> id !== DEMO_STUDENT_ID)
-    .filter(id=> !gradeFilter || gradeOf(ALL_STUDENTS[id]) === gradeFilter);
-  wrap.innerHTML = "";
-  if(ids.length === 0){
-    wrap.innerHTML = `<p class="center-note">まだ回答した学生がいません。</p>`;
-    return;
-  }
-  ids.forEach(id=>{
-    const s = ALL_STUDENTS[id];
-    const grade = gradeOf(s);
-    const logs = answersOfStudent(id);
-    const total = logs.length;
-    const correct = logs.filter(l=>l.correct).length;
-    const div = document.createElement("div");
-    div.className = "student-row";
-    div.style.position = "relative";
-    div.onclick = ()=> showStudentDetail(id);
-    div.innerHTML = `
-      <div><div class="name">${s.last} ${s.first}${grade? ` <span style="color:#999;font-weight:400;font-size:12px;">(${grade})</span>`:""}</div><div class="id">学籍番号: ${id}</div></div>
-      <div style="display:flex;align-items:center;gap:10px;">
-        <div class="stat">${total>0? `${correct}/${total}問(全体${Math.round(correct/total*100)}%)` : "未回答"}</div>
-        <button class="del" style="position:static;" onclick="event.stopPropagation(); deleteStudent('${id}')">削除</button>
-      </div>
-    `;
-    wrap.appendChild(div);
-  });
-}
-window.renderStudentList = renderStudentList;
-
-window.deleteStudent = async function(id){
-  const s = ALL_STUDENTS[id];
-  const name = s ? `${s.last} ${s.first}(${id})` : id;
-  if(!confirm(`${name} を削除しますか？この学生の解答履歴もすべて削除されます。`)) return;
-
-  await remove(ref(db, "students/"+id));
-  delete ALL_STUDENTS[id];
-
-  const toDelete = Object.entries(ALL_ANSWERS).filter(([aid,a])=>a.studentId===id).map(([aid])=>aid);
-  await Promise.all(toDelete.map(aid=> remove(ref(db, "answers/"+aid))));
-  toDelete.forEach(aid=> delete ALL_ANSWERS[aid]);
-
-  renderStudentList();
-}
-
-window.deleteStudentFromDetail = async function(){
-  if(!currentDetailStudentId) return;
-  const id = currentDetailStudentId;
-  const s = ALL_STUDENTS[id];
-  const name = s ? `${s.last} ${s.first}(${id})` : id;
-  if(!confirm(`${name} を削除しますか？この学生の解答履歴もすべて削除されます。`)) return;
-
-  await remove(ref(db, "students/"+id));
-  delete ALL_STUDENTS[id];
-  const toDelete = Object.entries(ALL_ANSWERS).filter(([aid,a])=>a.studentId===id).map(([aid])=>aid);
-  await Promise.all(toDelete.map(aid=> remove(ref(db, "answers/"+aid))));
-  toDelete.forEach(aid=> delete ALL_ANSWERS[aid]);
-
-  currentDetailStudentId = null;
-  switchTeacherTab('s');
-  showScreen('screen-teacher-dash');
-}
-
-let detailLogsCache = [];
-
-function showStudentDetail(id){
-  currentDetailStudentId = id;
-  const s = ALL_STUDENTS[id];
-  const grade = s.enrollYear ? gradeLabelFromEnrollYear(s.enrollYear) : (s.grade || "");
-  document.getElementById("detailStuName").textContent = `${s.last} ${s.first}${grade? "("+grade+")":""}(${id})`;
-  const logs = answersOfStudent(id);
-  detailLogsCache = logs;
-
-  const bySubject = {};
-  logs.forEach(l=>{
-    bySubject[l.subject] = bySubject[l.subject] || {total:0, correct:0};
-    bySubject[l.subject].total++;
-    if(l.correct) bySubject[l.subject].correct++;
-  });
-  let subRows = `<tr><th>科目</th><th>正答率</th></tr>`;
-  Object.keys(bySubject).forEach(sub=>{
-    const t = bySubject[sub];
-    subRows += `<tr><td>${sub}</td><td>${t.correct}/${t.total}(${Math.round(t.correct/t.total*100)}%)</td></tr>`;
-  });
-  document.getElementById("detailSubjectTable").innerHTML = subRows || `<tr><td>データなし</td></tr>`;
-
-  renderWeakBySubject();
-  renderHistoryByDate();
-  renderExamResults();
-
-  showScreen("screen-student-detail");
-}
-
-function renderExamResults(){
-  const wrap = document.getElementById("detailExamResults");
-  const wrapOuter = document.getElementById("detailExamWrap");
-  const examLogs = detailLogsCache.filter(l=> l.mode==="exam" && l.examSessionId);
-
-  if(examLogs.length===0){
-    wrapOuter.style.display = "none";
-    return;
-  }
-  wrapOuter.style.display = "block";
-
-  // セッションIDごとにグループ化(1回の模擬試験受験 = 1セッション)
-  const bySession = {};
-  examLogs.forEach(l=>{
-    bySession[l.examSessionId] = bySession[l.examSessionId] || {round: l.examRound, date: l.date, logs: []};
-    bySession[l.examSessionId].logs.push(l);
-  });
-  const sessionIds = Object.keys(bySession).sort((a,b)=> b.localeCompare(a)); // 新しい順(セッションIDはtimestamp文字列)
-
-  wrap.innerHTML = sessionIds.map(sid=>{
-    const session = bySession[sid];
-    const total = session.logs.length;
-    const correct = session.logs.filter(l=>l.correct).length;
-
-    const bySubject = {};
-    session.logs.forEach(l=>{
-      bySubject[l.subject] = bySubject[l.subject] || {total:0, correct:0};
-      bySubject[l.subject].total++;
-      if(l.correct) bySubject[l.subject].correct++;
-    });
-    const safeId = "exam_" + sid;
-    const subjectRows = SUBJECTS.filter(sub=>bySubject[sub]).map(sub=>{
-      const t = bySubject[sub];
-      return `<tr><td>${sub}</td><td>${t.correct}/${t.total}</td></tr>`;
-    }).join("");
-
-    return `
-      <div class="subject-item" style="cursor:pointer;" onclick="toggleAccordion('${safeId}')">
-        <div><div class="s-name">${session.round || "実施回不明"}</div><div class="s-meta">${session.date}</div></div>
-        <div class="s-rate">${correct} / ${total}点</div>
-      </div>
-      <div id="${safeId}" style="display:none;padding:6px 4px 10px;">
-        <table><tr><th>科目</th><th>得点</th></tr>${subjectRows}</table>
-      </div>
-    `;
-  }).join("");
-}
-
-function renderWeakBySubject(){
-  const wrap = document.getElementById("detailWeakTags");
-  const subjects = [...new Set(detailLogsCache.map(l=>l.subject))];
-  if(subjects.length===0){
-    wrap.innerHTML = `<p class="center-note">まだ回答がありません。</p>`;
-    return;
-  }
-  wrap.innerHTML = subjects.map(sub=>{
-    const logs = detailLogsCache.filter(l=>l.subject===sub);
-    const byTag = {};
-    logs.forEach(l=>{
-      (l.tags || (l.tag?[l.tag]:[])).forEach(tag=>{
-        byTag[tag] = byTag[tag] || {total:0, correct:0};
-        byTag[tag].total++;
-        if(l.correct) byTag[tag].correct++;
-      });
-    });
-    const weak = Object.keys(byTag).filter(tag=> (byTag[tag].correct/byTag[tag].total) < 0.5);
-    const safeId = "w_" + sub.replace(/[^a-zA-Z0-9ぁ-んァ-ヶ一-龠]/g,"_");
-    const inner = weak.length
-      ? weak.map(tag=>`<div class="weak-tag"><span>${tag}</span><span>${byTag[tag].correct}/${byTag[tag].total}</span></div>`).join("")
-      : `<p class="center-note" style="padding:10px 0;">この科目に苦手分野は見つかりませんでした。</p>`;
-    return `
-      <div class="subject-item" style="cursor:pointer;" onclick="toggleAccordion('${safeId}')">
-        <div class="s-name">${sub}</div>
-        <div class="s-rate ${weak.length? 'weak':''}">${weak.length ? weak.length+"件" : "なし"}</div>
-      </div>
-      <div id="${safeId}" style="display:none;padding:6px 4px 10px;">${inner}</div>
-    `;
-  }).join("");
-}
-
-function renderHistoryByDate(){
-  const wrap = document.getElementById("detailHistoryTable");
-  const dates = [...new Set(detailLogsCache.map(l=>l.date))].sort((a,b)=> b.localeCompare(a));
-  if(dates.length===0){
-    wrap.innerHTML = `<p class="center-note">まだ回答がありません。</p>`;
-    return;
-  }
-  wrap.innerHTML = dates.map(date=>{
-    const logs = detailLogsCache.filter(l=>l.date===date).sort((a,b)=>(b.timestamp||0)-(a.timestamp||0));
-    const total = logs.length;
-    const correct = logs.filter(l=>l.correct).length;
-    const safeId = "h_" + date.replace(/[^0-9]/g,"_");
-    const inner = `<table><tr><th>科目/分野</th><th>結果</th></tr>` +
-      logs.map(l=>`<tr><td>${l.subject}<br><span style="color:#999">${(l.tags || (l.tag?[l.tag]:[])).join("・")}</span></td><td style="color:${l.correct?'var(--correct)':'var(--wrong)'}">${l.correct?'正解':'不正解'}</td></tr>`).join("") +
-      `</table>`;
-    return `
-      <div class="subject-item" style="cursor:pointer;" onclick="toggleAccordion('${safeId}')">
-        <div class="s-name">${date}</div>
-        <div class="s-rate">${correct}/${total}</div>
-      </div>
-      <div id="${safeId}" style="display:none;padding:6px 4px 10px;">${inner}</div>
-    `;
-  }).join("");
-}
-
-window.toggleAccordion = function(id){
-  const el = document.getElementById(id);
-  if(!el) return;
-  el.style.display = el.style.display === "none" ? "block" : "none";
-}
-window.showStudentDetail = showStudentDetail;
-
-/* ===================== CSV出力 ===================== */
-window.exportCsv = function(){
-  const rows = [["学籍番号","姓","名","学年","科目","分野タグ","日付","結果"]];
-  Object.values(ALL_ANSWERS)
-    .filter(a=> a.studentId !== DEMO_STUDENT_ID)
-    .sort((a,b)=>(a.timestamp||0)-(b.timestamp||0))
-    .forEach(a=>{
-      const s = ALL_STUDENTS[a.studentId] || {last:"", first:""};
-      const grade = s.enrollYear ? gradeLabelFromEnrollYear(s.enrollYear) : (s.grade || "");
-      rows.push([a.studentId, s.last, s.first, grade, a.subject, (a.tags || (a.tag?[a.tag]:[])).join("・"), a.date, a.correct? "正解":"不正解"]);
-    });
-  const csv = rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\r\n");
-  const blob = new Blob(["\uFEFF"+csv], {type:"text/csv;charset=utf-8;"});
+  const bom = "\uFEFF";
+  const blob = new Blob([bom + csvContent], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url; a.download = `解答履歴_${todayStr()}.csv`;
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `peer_supporter_survey_${new Date().toISOString().slice(0,10)}.csv`;
   a.click();
   URL.revokeObjectURL(url);
-};
-
-/* ===================== 起動 ===================== */
-(async function init(){
-  try{
-    await signInAnonymously(auth);
-    await loadAll();
-    document.getElementById("topbarSub").textContent = "";
-  }catch(e){
-    document.getElementById("topbarSub").textContent = "接続エラー";
-    console.error(e);
-    alert("Firebaseへの接続に失敗しました。Authenticationで「匿名」サインインが有効になっているか、firebaseConfigの設定値を確認してください。");
-  }
-})();
+}
 </script>
 </body>
 </html>
