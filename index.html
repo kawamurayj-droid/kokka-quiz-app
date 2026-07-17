@@ -104,11 +104,20 @@
 <div class="app">
   <header class="topbar">
     <div class="brand">社会福祉士 過去問道場<small id="topbarSub">読み込み中...</small></div>
-    <button class="linklike" onclick="goHome()">最初へ</button>
+    <div style="display:flex;gap:8px">
+      <button class="linklike" onclick="goHome()">最初へ</button>
+      <button class="linklike" id="logoutBtn" style="display:none" onclick="logoutGoogle()">ログアウト</button>
+    </div>
   </header>
   <main>
 
-    <section class="screen active" id="screen-home">
+    <section class="screen active" id="screen-google-gate">
+      <h2 class="section-title">本人確認</h2>
+      <p class="note" style="margin-top:8px;margin-bottom:20px">ご利用の前に、NBUのGoogleアカウントでログインしてください。</p>
+      <button class="primary" onclick="loginWithGoogle()">Googleでログイン</button>
+    </section>
+
+    <section class="screen" id="screen-home">
       <h2 class="section-title">利用者を選んでください</h2>
       <div class="role-cards">
         <div class="role-card" onclick="showScreen('screen-student-login')">
@@ -332,7 +341,7 @@ import {
   getDatabase, ref, get, set, push, update, remove, child
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 import {
-  getAuth, signInAnonymously
+  getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 /* ★★★ ここをFirebaseコンソールで作成したプロジェクトの値に置き換えてください ★★★ */
@@ -351,6 +360,25 @@ const TEACHER_PIN = "1234"; // ★ 必要に応じて変更してください
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 const auth = getAuth(app);
+
+// ── Google認証（NBUドメイン限定） ─────────────────────────────
+const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({ hd: "nbu.ac.jp" });
+
+window.loginWithGoogle = async function(){
+  try{
+    const result = await signInWithPopup(auth, googleProvider);
+    if(!result.user.email || !result.user.email.endsWith("@nbu.ac.jp")){
+      await signOut(auth);
+      alert("NBUのGoogleアカウントでログインしてください");
+    }
+  }catch(e){
+    alert("ログインに失敗しました: " + e.message);
+  }
+};
+window.logoutGoogle = async function(){
+  await signOut(auth);
+};
 
 document.getElementById("topbarSub").textContent = "";
 
@@ -512,7 +540,11 @@ function showScreen(id){
   document.getElementById(id).classList.add("active");
   window.scrollTo(0,0);
 }
-function goHome(){ showScreen("screen-home"); }
+function goHome(){
+  const u = auth.currentUser;
+  if(u && u.email && u.email.endsWith("@nbu.ac.jp")) showScreen("screen-home");
+  else showScreen("screen-google-gate");
+}
 function shuffle(arr){
   const a = arr.slice();
   for(let i=a.length-1;i>0;i--){
@@ -1557,17 +1589,25 @@ window.exportCsv = function(){
 };
 
 /* ===================== 起動 ===================== */
-(async function init(){
-  try{
-    await signInAnonymously(auth);
-    await loadAll();
-    document.getElementById("topbarSub").textContent = "";
-  }catch(e){
-    document.getElementById("topbarSub").textContent = "接続エラー";
-    console.error(e);
-    alert("Firebaseへの接続に失敗しました。Authenticationで「匿名」サインインが有効になっているか、firebaseConfigの設定値を確認してください。");
+onAuthStateChanged(auth, async (user) => {
+  const logoutBtn = document.getElementById("logoutBtn");
+  if(user && user.email && user.email.endsWith("@nbu.ac.jp")){
+    logoutBtn.style.display = "";
+    try{
+      await loadAll();
+      document.getElementById("topbarSub").textContent = "";
+      showScreen("screen-home");
+    }catch(e){
+      document.getElementById("topbarSub").textContent = "接続エラー";
+      console.error(e);
+      alert("Firebaseへの接続に失敗しました。firebaseConfigの設定値を確認してください。");
+    }
+  }else{
+    if(user) await signOut(auth); // NBU以外のアカウントは強制サインアウト
+    logoutBtn.style.display = "none";
+    showScreen("screen-google-gate");
   }
-})();
+});
 </script>
 </body>
 </html>
