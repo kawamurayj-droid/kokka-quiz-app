@@ -320,6 +320,16 @@
     <section class="screen" id="screen-student-detail">
       <span class="backlink" onclick="switchTeacherTab('s'); showScreen('screen-teacher-dash')">← 学生一覧に戻る</span>
       <h2 class="section-title" id="detailStuName"></h2>
+      <button class="ghost" onclick="toggleStudentEdit()" style="text-align:left;">✎ 学生情報を編集する</button>
+      <div id="studentEditWrap" style="display:none;border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px;">
+        <div class="row2">
+          <div><label>姓</label><input type="text" id="editStuLast"></div>
+          <div><label>名</label><input type="text" id="editStuFirst"></div>
+        </div>
+        <label>入学年度</label>
+        <select id="editStuEnrollYear"></select>
+        <button class="primary" onclick="saveStudentEdit()">保存する</button>
+      </div>
       <h3 style="font-size:13px;color:var(--navy);">科目別 正答率</h3>
       <table id="detailSubjectTable"></table>
       <h3 style="font-size:13px;color:var(--wrong);margin-top:18px;">苦手分野(正答率50%未満)</h3>
@@ -1414,6 +1424,7 @@ function showStudentDetail(id){
   const s = ALL_STUDENTS[id];
   const grade = s.enrollYear ? gradeLabelFromEnrollYear(s.enrollYear) : (s.grade || "");
   document.getElementById("detailStuName").textContent = `${s.last} ${s.first}${grade? "("+grade+")":""}(${id})`;
+  document.getElementById("studentEditWrap").style.display = "none";
   const logs = answersOfStudent(id);
   detailLogsCache = logs;
 
@@ -1548,6 +1559,39 @@ window.toggleAccordion = function(id){
   el.style.display = el.style.display === "none" ? "block" : "none";
 }
 window.showStudentDetail = showStudentDetail;
+
+window.toggleStudentEdit = function(){
+  const wrap = document.getElementById("studentEditWrap");
+  const opening = wrap.style.display === "none";
+  wrap.style.display = opening ? "block" : "none";
+  if(opening){
+    const s = ALL_STUDENTS[currentDetailStudentId];
+    document.getElementById("editStuLast").value = s.last || "";
+    document.getElementById("editStuFirst").value = s.first || "";
+    const sel = document.getElementById("editStuEnrollYear");
+    const ay = currentAcademicYear();
+    let opts = "";
+    for(let y = ay; y >= ay-5; y--){
+      opts += `<option value="${y}">${y}年度入学(現在${gradeLabelFromEnrollYear(y)})</option>`;
+    }
+    sel.innerHTML = opts;
+    if(s.enrollYear) sel.value = s.enrollYear;
+  }
+}
+
+window.saveStudentEdit = async function(){
+  const id = currentDetailStudentId;
+  const last = document.getElementById("editStuLast").value.trim();
+  const first = document.getElementById("editStuFirst").value.trim();
+  const enrollYear = parseInt(document.getElementById("editStuEnrollYear").value);
+  if(!last || !first){ alert("姓・名を入力してください。"); return; }
+  const updated = {last, first, enrollYear};
+  await set(ref(db, "students/"+id), updated);
+  ALL_STUDENTS[id] = updated;
+  document.getElementById("studentEditWrap").style.display = "none";
+  showStudentDetail(id);
+  renderStudentList();
+}
 
 /* ===================== CSV出力 ===================== */
 window.exportCsv = function(){
