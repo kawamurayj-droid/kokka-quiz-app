@@ -313,6 +313,7 @@
           <option value="5年目以降">5年目以降</option>
         </select>
         <button class="secondary" onclick="exportCsv()">CSVで一覧をダウンロード</button>
+        <button class="secondary" onclick="exportStudyTimeCsv()">学修時間CSVをダウンロード</button>
         <div id="studentListWrap" style="margin-top:14px;"><div class="loading">読み込み中...</div></div>
       </div>
     </section>
@@ -330,6 +331,7 @@
         <select id="editStuEnrollYear"></select>
         <button class="primary" onclick="saveStudentEdit()">保存する</button>
       </div>
+      <div id="detailStudyTime" style="margin-bottom:14px;"></div>
       <h3 style="font-size:13px;color:var(--navy);">科目別 正答率</h3>
       <table id="detailSubjectTable"></table>
       <h3 style="font-size:13px;color:var(--wrong);margin-top:18px;">苦手分野(正答率50%未満)</h3>
@@ -523,6 +525,7 @@ let ALL_ANSWERS = {};     // id -> {studentId, subject, tag, correct, date}
 let QUIZ_LENGTHS = {};    // subject -> number
 let SUBJECT_TAGS = {};    // subject -> [tag, tag, ...]
 let MY_FAVORITES = {};    // questionId -> true (現在ログイン中の学生のみ)
+let ALL_STUDY_SESSIONS = {}; // id -> {studentId, mode, questionCount, correctCount, durationSec, date, timestamp}
 let currentStudent = null;
 let currentDetailStudentId = null;
 let quizQueue = [];
@@ -576,22 +579,34 @@ window.goHome = goHome;
 
 /* ===================== 初期データ読み込み ===================== */
 async function loadAll(){
-  const [qSnap, sSnap, aSnap, lenSnap, tagSnap] = await Promise.all([
+  const [qSnap, sSnap, aSnap, lenSnap, tagSnap, sessSnap] = await Promise.all([
     get(ref(db, "questions")),
     get(ref(db, "students")),
     get(ref(db, "answers")),
     get(ref(db, "quizLengths")),
-    get(ref(db, "subjectTags"))
+    get(ref(db, "subjectTags")),
+    get(ref(db, "studySessions"))
   ]);
   ALL_QUESTIONS = qSnap.exists() ? qSnap.val() : {};
   ALL_STUDENTS = sSnap.exists() ? sSnap.val() : {};
   ALL_ANSWERS = aSnap.exists() ? aSnap.val() : {};
   QUIZ_LENGTHS = lenSnap.exists() ? lenSnap.val() : {};
+  ALL_STUDY_SESSIONS = sessSnap.exists() ? sessSnap.val() : {};
   const savedTags = tagSnap.exists() ? tagSnap.val() : {};
   SUBJECT_TAGS = {};
   SUBJECTS.forEach(s=>{
     SUBJECT_TAGS[s] = savedTags[s] || DEFAULT_SUBJECT_TAGS[s] || [];
   });
+}
+
+function studySessionsOfStudent(studentId){
+  return Object.values(ALL_STUDY_SESSIONS).filter(s=>s.studentId===studentId);
+}
+function formatDuration(totalSec){
+  const totalMin = Math.round(totalSec/60);
+  const h = Math.floor(totalMin/60);
+  const m = totalMin%60;
+  return h>0 ? `${h}時間${m}分` : `${m}分`;
 }
 
 function tagsOf(subject){
@@ -691,9 +706,10 @@ window.showMyProgress = function(){
   const streak = computeStreak(currentStudent.id);
   const logs = answersOfStudent(currentStudent.id);
   const totalAnswered = logs.length;
+  const totalSec = studySessionsOfStudent(currentStudent.id).reduce((sum,x)=>sum+(x.durationSec||0),0);
 
   document.getElementById("myProgressStreak").innerHTML =
-    `<div class="feedback ok" style="display:inline-block;">🔥 現在 ${streak}日連続で学習中・累計 ${totalAnswered}問</div>
+    `<div class="feedback ok" style="display:inline-block;">🔥 現在 ${streak}日連続で学習中・累計 ${totalAnswered}問・累計学修時間 ${formatDuration(totalSec)}</div>
      <h3 style="font-size:13px;color:var(--navy);margin-top:18px;">連続学習日数バッジ</h3>
      ${renderBadgeGrid(streak, STREAK_BADGES, "日")}
      <h3 style="font-size:13px;color:var(--navy);margin-top:18px;">解いた問題数バッジ</h3>
@@ -760,6 +776,7 @@ window.startReviewMode = function(){
   quizMode = "review";
   quizIndex = 0;
   quizResults = [];
+  sessionStartTime = Date.now();
   showScreen("screen-quiz");
   renderQuestion();
 }
@@ -775,6 +792,7 @@ window.startFavoriteMode = function(){
   quizMode = "favorite";
   quizIndex = 0;
   quizResults = [];
+  sessionStartTime = Date.now();
   showScreen("screen-quiz");
   renderQuestion();
 }
@@ -929,12 +947,14 @@ window.startExamMode = function(round){
   currentExamSessionId = String(Date.now());
   quizIndex = 0;
   quizResults = [];
+  sessionStartTime = Date.now();
   showScreen("screen-quiz");
   renderQuestion();
 }
 
 /* ===================== 出題 ===================== */
 let quizMode = "random"; // "random"(科目別ランダム) or "exam"(模擬試験)
+let sessionStartTime = null; // 学修時間計測用
 let currentExamRound = null;
 let currentExamSessionId = null;
 
@@ -951,6 +971,7 @@ window.startQuiz = function(subject, count){
   quizMode = "random";
   quizIndex = 0;
   quizResults = [];
+  sessionStartTime = Date.now();
   showScreen("screen-quiz");
   renderQuestion();
 }
@@ -1065,11 +1086,26 @@ window.nextQuestion = function(){
   if(quizIndex >= quizQueue.length){ showResult(); } else { renderQuestion(); }
 }
 
-function showResult(){
+async function showResult(){
   const total = quizResults.length;
   const correct = quizResults.filter(r=>r.correct).length;
   document.getElementById("resultSummary").innerHTML =
     `<p style="font-size:15px;">今回の正答: <strong style="color:var(--navy);font-size:20px;">${correct} / ${total}</strong>問</p>`;
+
+  // 学修時間セッションを記録(お尻の離席等は考慮しない、目安の時間)
+  if(currentStudent && currentStudent.id !== undefined && sessionStartTime){
+    const durationSec = Math.max(1, Math.round((Date.now()-sessionStartTime)/1000));
+    const sessionRecord = {
+      studentId: currentStudent.id, mode: quizMode, questionCount: total, correctCount: correct,
+      durationSec, date: todayStr(), timestamp: Date.now()
+    };
+    try{
+      const sRef = push(ref(db, "studySessions"));
+      await set(sRef, sessionRecord);
+      ALL_STUDY_SESSIONS[sRef.key] = sessionRecord;
+    }catch(e){ console.error("学修時間の記録に失敗しました", e); }
+    sessionStartTime = null;
+  }
 
   const subjectWrap = document.getElementById("resultSubjectWrap");
   if(quizMode === "exam"){
@@ -1368,6 +1404,7 @@ function renderStudentList(){
     const logs = answersOfStudent(id);
     const total = logs.length;
     const correct = logs.filter(l=>l.correct).length;
+    const totalSec = studySessionsOfStudent(id).reduce((sum,x)=>sum+(x.durationSec||0),0);
     const div = document.createElement("div");
     div.className = "student-row";
     div.style.position = "relative";
@@ -1375,7 +1412,7 @@ function renderStudentList(){
     div.innerHTML = `
       <div><div class="name">${s.last} ${s.first}${grade? ` <span style="color:#999;font-weight:400;font-size:12px;">(${grade})</span>`:""}</div><div class="id">学籍番号: ${id}</div></div>
       <div style="display:flex;align-items:center;gap:10px;">
-        <div class="stat">${total>0? `${correct}/${total}問(全体${Math.round(correct/total*100)}%)` : "未回答"}</div>
+        <div class="stat">${total>0? `${correct}/${total}問(全体${Math.round(correct/total*100)}%)・累計${formatDuration(totalSec)}` : "未回答"}</div>
         <button class="del" style="position:static;" onclick="event.stopPropagation(); deleteStudent('${id}')">削除</button>
       </div>
     `;
@@ -1427,6 +1464,13 @@ function showStudentDetail(id){
   document.getElementById("studentEditWrap").style.display = "none";
   const logs = answersOfStudent(id);
   detailLogsCache = logs;
+
+  const sessions = studySessionsOfStudent(id);
+  const totalSec = sessions.reduce((sum,x)=>sum+(x.durationSec||0),0);
+  const daysStudied = new Set(sessions.map(x=>x.date)).size;
+  document.getElementById("detailStudyTime").innerHTML = sessions.length>0
+    ? `<div class="feedback ok" style="display:inline-block;">⏱ 累計学修時間: ${formatDuration(totalSec)}(${sessions.length}回のセッション・${daysStudied}日)</div>`
+    : `<p class="center-note" style="padding:6px 0;">まだ学修時間の記録がありません。</p>`;
 
   const bySubject = {};
   logs.forEach(l=>{
@@ -1609,6 +1653,25 @@ window.exportCsv = function(){
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url; a.download = `解答履歴_${todayStr()}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+window.exportStudyTimeCsv = function(){
+  const rows = [["学籍番号","姓","名","学年","モード","問題数","正答数","所要時間(秒)","日付"]];
+  Object.values(ALL_STUDY_SESSIONS)
+    .filter(x=> x.studentId !== DEMO_STUDENT_ID)
+    .sort((a,b)=>(a.timestamp||0)-(b.timestamp||0))
+    .forEach(x=>{
+      const s = ALL_STUDENTS[x.studentId] || {last:"", first:""};
+      const grade = s.enrollYear ? gradeLabelFromEnrollYear(s.enrollYear) : (s.grade || "");
+      rows.push([x.studentId, s.last, s.first, grade, x.mode||"", x.questionCount, x.correctCount, x.durationSec, x.date]);
+    });
+  const csv = rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\r\n");
+  const blob = new Blob(["\uFEFF"+csv], {type:"text/csv;charset=utf-8;"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = `学修時間_${todayStr()}.csv`;
   a.click();
   URL.revokeObjectURL(url);
 };
