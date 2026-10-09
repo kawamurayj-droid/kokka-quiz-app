@@ -317,7 +317,8 @@
         <label>課題名(例:第3回講義 社会福祉の原理と政策)</label>
         <input type="text" id="asTitle" placeholder="課題名">
         <label>問題を探す(科目・実施回で絞り込み)</label>
-        <select id="asFilterSubject" onchange="renderAssignPicker()"></select>
+        <select id="asFilterSubject" onchange="updateAssignTagFilter()"></select>
+        <select id="asFilterTag" onchange="renderAssignPicker()"><option value="">すべての出題項目(分野タグ)</option></select>
         <select id="asFilterRound" onchange="renderAssignPicker()"></select>
         <div id="asPicker" style="max-height:260px;overflow:auto;border:1px solid #ddd;border-radius:8px;padding:6px;margin-top:8px;"></div>
         <p class="note">選んだ順番に出題されます(学生全員が同じ順番・同じ選択肢の並びで解きます)。</p>
@@ -1195,16 +1196,24 @@ let ASSIGN_SEL = [];
 async function initAssignTab(){
   document.getElementById("asFilterSubject").innerHTML = `<option value="">すべての科目</option>` + SUBJECTS.map(s=>`<option value="${s}">${s}</option>`).join("");
   document.getElementById("asFilterRound").innerHTML = `<option value="">すべての実施回</option>` + availableRounds().map(r=>`<option value="${escH(r)}">${escH(r)}</option>`).join("");
-  renderAssignPicker();
+  updateAssignTagFilter();
   renderAssignSelected();
   await reloadAssignments();
   renderAssignList();
 }
+window.updateAssignTagFilter = function(){
+  const sub = document.getElementById("asFilterSubject").value;
+  const sel = document.getElementById("asFilterTag");
+  sel.innerHTML = `<option value="">すべての出題項目(分野タグ)</option>` + (sub ? tagsOf(sub).map(t=>`<option value="${escH(t)}">${escH(t)}</option>`).join("") : "");
+  sel.disabled = !sub;
+  renderAssignPicker();
+}
 window.renderAssignPicker = function(){
   const sub = document.getElementById("asFilterSubject").value;
+  const tag = document.getElementById("asFilterTag").value;
   const rd = document.getElementById("asFilterRound").value;
   const items = Object.entries(ALL_QUESTIONS)
-    .filter(([id,q])=> (!sub||q.subject===sub) && (!rd||q.round===rd))
+    .filter(([id,q])=> (!sub||q.subject===sub) && (!rd||q.round===rd) && (!tag||(q.tags||(q.tag?[q.tag]:[])).includes(tag)))
     .sort((a,b)=> String(a[1].round||"").localeCompare(String(b[1].round||"")) || numberSortKey(a[1])-numberSortKey(b[1]));
   const wrap = document.getElementById("asPicker");
   if(items.length===0){ wrap.innerHTML = `<p class="note">該当する問題がありません。</p>`; return; }
