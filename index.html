@@ -161,6 +161,10 @@
           <h3>科目別モード</h3>
           <p>科目を選んで、その科目の過去問からランダムに出題されます。問題数も選べます。</p>
         </div>
+        <div class="role-card" onclick="openAssignmentList()" style="border-color:var(--gold);">
+          <h3>講義課題</h3>
+          <p>教員が指定した問題セットを、全員が同じ問題・同じ順番で解きます。</p>
+        </div>
         <div class="role-card" onclick="startReviewMode()">
           <h3>復習モード</h3>
           <p>これまで間違えたままの問題だけをまとめて解き直します。</p>
@@ -174,6 +178,12 @@
           <p>連続学習日数や、最近の正答率の推移を確認できます。</p>
         </div>
       </div>
+    </section>
+
+    <section class="screen" id="screen-assignment-list">
+      <span class="backlink" onclick="showScreen('screen-mode-select')">← 戻る</span>
+      <h2 class="section-title">講義課題</h2>
+      <div id="assignmentListWrap"><div class="loading">読み込み中...</div></div>
     </section>
 
     <section class="screen" id="screen-my-progress">
@@ -249,6 +259,7 @@
       <div class="tabbar">
         <button class="active" id="tabBtnQ" onclick="switchTeacherTab('q')">過去問管理</button>
         <button id="tabBtnS" onclick="switchTeacherTab('s')">学生の進捗</button>
+        <button id="tabBtnA" onclick="switchTeacherTab('a')">課題配信</button>
       </div>
 
       <div id="teacherTabQ">
@@ -299,6 +310,21 @@
           <div><label>実施回で絞り込み</label><select id="qFilterRound" onchange="renderRegisteredQuestions()"></select></div>
         </div>
         <div id="registeredQList" style="margin-top:10px;"><div class="loading">読み込み中...</div></div>
+      </div>
+
+      <div id="teacherTabA" style="display:none">
+        <h2 class="section-title">講義課題を作成して配信</h2>
+        <label>課題名(例:第3回講義 社会福祉の原理と政策)</label>
+        <input type="text" id="asTitle" placeholder="課題名">
+        <label>問題を探す(科目・実施回で絞り込み)</label>
+        <select id="asFilterSubject" onchange="renderAssignPicker()"></select>
+        <select id="asFilterRound" onchange="renderAssignPicker()"></select>
+        <div id="asPicker" style="max-height:260px;overflow:auto;border:1px solid #ddd;border-radius:8px;padding:6px;margin-top:8px;"></div>
+        <p class="note">選んだ順番に出題されます(学生全員が同じ順番・同じ選択肢の並びで解きます)。</p>
+        <div id="asSelected" style="margin-top:8px;"></div>
+        <button class="primary" onclick="publishAssignment()">この問題セットを配信する</button>
+        <h2 class="section-title" style="margin-top:28px;">配信済みの課題</h2>
+        <div id="asList"><div class="loading">読み込み中...</div></div>
       </div>
 
       <div id="teacherTabS" style="display:none">
@@ -525,6 +551,7 @@ let ALL_ANSWERS = {};     // id -> {studentId, subject, tag, correct, date}
 let QUIZ_LENGTHS = {};    // subject -> number
 let SUBJECT_TAGS = {};    // subject -> [tag, tag, ...]
 let MY_FAVORITES = {};    // questionId -> true (現在ログイン中の学生のみ)
+let ALL_ASSIGNMENTS = {}; // id -> {title, questionIds[], active, createdAt}
 let ALL_STUDY_SESSIONS = {}; // id -> {studentId, mode, questionCount, correctCount, durationSec, date, timestamp}
 let currentStudent = null;
 let currentDetailStudentId = null;
@@ -579,14 +606,16 @@ window.goHome = goHome;
 
 /* ===================== 初期データ読み込み ===================== */
 async function loadAll(){
-  const [qSnap, sSnap, aSnap, lenSnap, tagSnap, sessSnap] = await Promise.all([
+  const [qSnap, sSnap, aSnap, lenSnap, tagSnap, sessSnap, asSnap] = await Promise.all([
     get(ref(db, "questions")),
     get(ref(db, "students")),
     get(ref(db, "answers")),
     get(ref(db, "quizLengths")),
     get(ref(db, "subjectTags")),
-    get(ref(db, "studySessions"))
+    get(ref(db, "studySessions")),
+    get(ref(db, "assignments"))
   ]);
+  ALL_ASSIGNMENTS = asSnap.exists() ? asSnap.val() : {};
   ALL_QUESTIONS = qSnap.exists() ? qSnap.val() : {};
   ALL_STUDENTS = sSnap.exists() ? sSnap.val() : {};
   ALL_ANSWERS = aSnap.exists() ? aSnap.val() : {};
@@ -957,9 +986,11 @@ let quizMode = "random"; // "random"(科目別ランダム) or "exam"(模擬試�
 let sessionStartTime = null; // 学修時間計測用
 let currentExamRound = null;
 let currentExamSessionId = null;
+let currentAssignmentId = null;
 
 window.quizBackToSelect = function(){
   if(quizMode === "exam") showScreen("screen-exam-setup");
+  else if(quizMode === "assignment") openAssignmentList();
   else if(quizMode === "review" || quizMode === "favorite") showScreen("screen-mode-select");
   else showScreen("screen-subject-select");
 }
@@ -999,7 +1030,7 @@ function renderQuestion(){
   else { favBtn.textContent = "☆"; favBtn.style.color = "#ccc"; }
   const wrap = document.getElementById("choicesWrap");
   wrap.innerHTML = "";
-  currentChoiceOrder = shuffle(q.choices.map((c,i)=>i)); // 選択肢の並びを毎回シャッフル
+  currentChoiceOrder = quizMode==="assignment" ? q.choices.map((c,i)=>i) : shuffle(q.choices.map((c,i)=>i)); // 選択肢の並びを毎回シャッフル(講義課題は固定)
   currentChoiceOrder.forEach((origIdx, pos)=>{
     const c = q.choices[origIdx];
     const div = document.createElement("div");
@@ -1076,6 +1107,7 @@ async function finalizeAnswer(chosenArr){
     record.examRound = currentExamRound;
     record.examSessionId = currentExamSessionId;
   }
+  if(quizMode === "assignment"){ record.assignmentId = currentAssignmentId; }
   const newRef = push(ref(db, "answers"));
   await set(newRef, record);
   ALL_ANSWERS[newRef.key] = record;
@@ -1142,6 +1174,156 @@ async function showResult(){
   document.getElementById("resultTagTable").innerHTML = rows;
   renderSubjectList();
   showScreen("screen-result");
+}
+
+
+/* ===================== 講義課題(課題配信) ===================== */
+function escH(t){ return String(t==null?"":t).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function qLabel(id){
+  const q = ALL_QUESTIONS[id];
+  if(!q) return "(削除された問題)";
+  const no = [q.round,q.number].filter(Boolean).join(" ");
+  return `${no?no+" ":""}[${q.subject}] ${(q.text||"").slice(0,40)}…`;
+}
+async function reloadAssignments(){
+  const snap = await get(ref(db,"assignments"));
+  ALL_ASSIGNMENTS = snap.exists() ? snap.val() : {};
+}
+
+/* --- 教員側 --- */
+let ASSIGN_SEL = [];
+async function initAssignTab(){
+  document.getElementById("asFilterSubject").innerHTML = `<option value="">すべての科目</option>` + SUBJECTS.map(s=>`<option value="${s}">${s}</option>`).join("");
+  document.getElementById("asFilterRound").innerHTML = `<option value="">すべての実施回</option>` + availableRounds().map(r=>`<option value="${escH(r)}">${escH(r)}</option>`).join("");
+  renderAssignPicker();
+  renderAssignSelected();
+  await reloadAssignments();
+  renderAssignList();
+}
+window.renderAssignPicker = function(){
+  const sub = document.getElementById("asFilterSubject").value;
+  const rd = document.getElementById("asFilterRound").value;
+  const items = Object.entries(ALL_QUESTIONS)
+    .filter(([id,q])=> (!sub||q.subject===sub) && (!rd||q.round===rd))
+    .sort((a,b)=> String(a[1].round||"").localeCompare(String(b[1].round||"")) || numberSortKey(a[1])-numberSortKey(b[1]));
+  const wrap = document.getElementById("asPicker");
+  if(items.length===0){ wrap.innerHTML = `<p class="note">該当する問題がありません。</p>`; return; }
+  wrap.innerHTML = items.map(([id,q])=>`<label style="display:flex;gap:8px;align-items:flex-start;padding:5px 4px;border-bottom:1px solid #eee;font-size:13px;cursor:pointer;">
+    <input type="checkbox" ${ASSIGN_SEL.includes(id)?"checked":""} onchange="toggleAssignQ('${id}',this.checked)"><span>${escH(qLabel(id))}</span></label>`).join("");
+}
+window.toggleAssignQ = function(id,on){
+  const i = ASSIGN_SEL.indexOf(id);
+  if(on && i===-1) ASSIGN_SEL.push(id);
+  if(!on && i!==-1) ASSIGN_SEL.splice(i,1);
+  renderAssignSelected();
+}
+function renderAssignSelected(){
+  const w = document.getElementById("asSelected");
+  if(ASSIGN_SEL.length===0){ w.innerHTML = `<p class="note">選択中: 0問</p>`; return; }
+  w.innerHTML = `<p class="note">選択中: ${ASSIGN_SEL.length}問(出題順)</p>` + ASSIGN_SEL.map((id,i)=>
+    `<div style="font-size:13px;display:flex;gap:6px;align-items:center;padding:3px 0;"><span style="flex:1">${i+1}. ${escH(qLabel(id))}</span>
+     <button class="ghost" style="width:auto;padding:2px 8px;margin:0" onclick="moveAssignQ(${i},-1)">↑</button>
+     <button class="ghost" style="width:auto;padding:2px 8px;margin:0" onclick="moveAssignQ(${i},1)">↓</button>
+     <button class="ghost" style="width:auto;padding:2px 8px;margin:0" onclick="toggleAssignQ('${id}',false);renderAssignPicker()">×</button></div>`).join("");
+}
+window.moveAssignQ = function(i,d){
+  const j=i+d; if(j<0||j>=ASSIGN_SEL.length) return;
+  [ASSIGN_SEL[i],ASSIGN_SEL[j]]=[ASSIGN_SEL[j],ASSIGN_SEL[i]];
+  renderAssignSelected();
+}
+window.publishAssignment = async function(){
+  const title = document.getElementById("asTitle").value.trim();
+  if(!title){ alert("課題名を入力してください。"); return; }
+  if(ASSIGN_SEL.length===0){ alert("問題を1問以上選んでください。"); return; }
+  const rec = {title, questionIds:ASSIGN_SEL.slice(), active:true, createdAt:Date.now()};
+  const r = push(ref(db,"assignments"));
+  await set(r, rec);
+  ALL_ASSIGNMENTS[r.key] = rec;
+  ASSIGN_SEL = [];
+  document.getElementById("asTitle").value = "";
+  renderAssignPicker(); renderAssignSelected(); renderAssignList();
+  alert("配信しました。学生の「講義課題」に表示されます。");
+}
+function renderAssignList(){
+  const w = document.getElementById("asList");
+  const items = Object.entries(ALL_ASSIGNMENTS).sort((a,b)=>(b[1].createdAt||0)-(a[1].createdAt||0));
+  if(items.length===0){ w.innerHTML = `<p class="note">まだ課題がありません。</p>`; return; }
+  w.innerHTML = items.map(([id,a])=>`<div style="border:1px solid #ddd;border-radius:10px;padding:10px 12px;margin-bottom:10px;">
+    <div style="font-weight:700;color:var(--navy);">${escH(a.title)} <span style="font-size:12px;color:${a.active?'#2e7d32':'#999'};">${a.active?'公開中':'停止中'}</span></div>
+    <div class="note">${(a.questionIds||[]).length}問 ・ ${new Date(a.createdAt||0).toLocaleDateString("ja-JP")}</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">
+      <button class="secondary" style="width:auto;margin:0" onclick="toggleAssignActive('${id}')">${a.active?'配信を停止':'配信を再開'}</button>
+      <button class="secondary" style="width:auto;margin:0" onclick="showAssignResults('${id}')">結果を見る</button>
+      <button class="ghost" style="width:auto;margin:0;color:#c0392b" onclick="deleteAssignment('${id}')">削除</button>
+    </div>
+    <div id="asRes_${id}" style="margin-top:8px;"></div></div>`).join("");
+}
+window.toggleAssignActive = async function(id){
+  const a = ALL_ASSIGNMENTS[id]; a.active = !a.active;
+  await set(ref(db,"assignments/"+id+"/active"), a.active);
+  renderAssignList();
+}
+window.deleteAssignment = async function(id){
+  if(!confirm("この課題を削除します(学生の解答履歴は残ります)。よろしいですか?")) return;
+  await remove(ref(db,"assignments/"+id));
+  delete ALL_ASSIGNMENTS[id];
+  renderAssignList();
+}
+window.showAssignResults = async function(id){
+  const a = ALL_ASSIGNMENTS[id];
+  const box = document.getElementById("asRes_"+id);
+  if(box.innerHTML){ box.innerHTML=""; return; }
+  const snap = await get(ref(db,"answers"));
+  ALL_ANSWERS = snap.exists() ? snap.val() : {};
+  const qids = a.questionIds||[];
+  const byStu = {};
+  Object.values(ALL_ANSWERS).filter(x=>x.assignmentId===id && x.studentId!==DEMO_STUDENT_ID).forEach(x=>{
+    const m = byStu[x.studentId] = byStu[x.studentId] || {};
+    if(!m[x.questionId] || (x.timestamp||0)>(m[x.questionId].timestamp||0)) m[x.questionId]=x;
+  });
+  const sids = Object.keys(byStu).sort();
+  if(sids.length===0){ box.innerHTML = `<p class="note">まだ取り組んだ学生がいません。</p>`; return; }
+  let html = `<div style="overflow:auto"><table><tr><th>学籍番号</th><th>氏名</th><th>解答数</th><th>正解数</th>${qids.map((q,i)=>`<th>${i+1}</th>`).join("")}</tr>`;
+  sids.forEach(sid=>{
+    const st = ALL_STUDENTS[sid]||{};
+    const m = byStu[sid];
+    const done = qids.filter(q=>m[q]).length, ok = qids.filter(q=>m[q]&&m[q].correct).length;
+    html += `<tr><td>${escH(sid)}</td><td>${escH((st.last||"")+" "+(st.first||""))}</td><td>${done}/${qids.length}</td><td>${ok}</td>${qids.map(q=>`<td>${m[q]?(m[q].correct?"○":"×"):"-"}</td>`).join("")}</tr>`;
+  });
+  // 問題ごとの正答率
+  html += `<tr><th colspan="4">問題ごとの正答率</th>${qids.map(q=>{
+    const ans = sids.filter(s=>byStu[s][q]); const ok = ans.filter(s=>byStu[s][q].correct).length;
+    return `<th>${ans.length?Math.round(ok/ans.length*100)+"%":"-"}</th>`;}).join("")}</tr></table></div>`;
+  box.innerHTML = html;
+}
+
+/* --- 学生側 --- */
+window.openAssignmentList = async function(){
+  showScreen("screen-assignment-list");
+  const w = document.getElementById("assignmentListWrap");
+  w.innerHTML = `<div class="loading">読み込み中...</div>`;
+  try{ await reloadAssignments(); }catch(e){ w.innerHTML = `<p class="note">読み込みに失敗しました。</p>`; return; }
+  const items = Object.entries(ALL_ASSIGNMENTS).filter(([id,a])=>a.active).sort((a,b)=>(b[1].createdAt||0)-(a[1].createdAt||0));
+  if(items.length===0){ w.innerHTML = `<p class="note">現在配信されている課題はありません。</p>`; return; }
+  const mine = answersOfStudent(currentStudent.id);
+  w.innerHTML = `<div class="subject-list">` + items.map(([id,a])=>{
+    const qids = (a.questionIds||[]).filter(q=>ALL_QUESTIONS[q]);
+    const done = qids.filter(q=>mine.some(x=>x.assignmentId===id && x.questionId===q)).length;
+    return `<div class="subject-item" onclick="startAssignment('${id}')"><div><div class="s-name">${escH(a.title)}</div><div class="s-meta">${qids.length}問</div></div><div class="s-rate" style="font-size:13px">${done}/${qids.length}問 取組済</div></div>`;
+  }).join("") + `</div>`;
+}
+window.startAssignment = function(id){
+  const a = ALL_ASSIGNMENTS[id];
+  const pool = (a.questionIds||[]).map(q=> ALL_QUESTIONS[q] ? {id:q, ...ALL_QUESTIONS[q]} : null).filter(Boolean);
+  if(pool.length===0){ alert("この課題の問題が見つかりません。"); return; }
+  quizQueue = pool;
+  quizMode = "assignment";
+  currentAssignmentId = id;
+  quizIndex = 0;
+  quizResults = [];
+  sessionStartTime = Date.now();
+  showScreen("screen-quiz");
+  renderQuestion();
 }
 
 /* ===================== 教員ログイン ===================== */
@@ -1258,9 +1440,12 @@ window.saveQuizLength = async function(){
 window.switchTeacherTab = function(tab){
   document.getElementById("teacherTabQ").style.display = tab==='q' ? 'block':'none';
   document.getElementById("teacherTabS").style.display = tab==='s' ? 'block':'none';
+  document.getElementById("teacherTabA").style.display = tab==='a' ? 'block':'none';
+  document.getElementById("tabBtnA").classList.toggle("active", tab==='a');
   document.getElementById("tabBtnQ").classList.toggle("active", tab==='q');
   document.getElementById("tabBtnS").classList.toggle("active", tab==='s');
   if(tab==='s') renderStudentList();
+  if(tab==='a') initAssignTab();
 }
 
 /* ===================== 教員: 過去問登録・編集 ===================== */
